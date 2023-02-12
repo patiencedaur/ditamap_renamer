@@ -68,7 +68,7 @@ class DITAProjectFile:
 		self.tree = ET.parse(self.path)
 		self.root = self.tree.getroot()
 		self.header = self.get_header()
-		self.ditamap = None
+		self.ditamap = None # is assigned during Pair creation
 		
 	def __repr__(self):
 		return '<DITAProjectFile: ' + self.name + self.ext + '>'
@@ -137,11 +137,18 @@ class DITAMap(DITAProjectFile):
 	def __init__(self, file_path):
 		super().__init__(file_path)
 		self.ditamap = self
-		# self.image_href_list = self.get_image_href_list()
+		self.images = self.get_images()
 		self.pairs = self.get_pairs()
+		self.libvar = self.get_libvar()
 
 	def __str__(self):
 		return '<DITAMap: ' + self.name + '>'
+
+	def __contains__(self, item):
+		for pair in self.pairs:
+			if item in pair:
+				return True
+		return False
 
 	def get_pairs(self):
 		pairs = []
@@ -162,14 +169,21 @@ class DITAMap(DITAProjectFile):
 			ish = ISHFile(ish_path, self)
 			pair = Pair(topic, ish)
 			pairs.append(pair)
-		return pairs
+		return set(pairs)
 
-	# def get_image_href_list(self):
-	# 	image_href_list = []
-	# 	for file in os.listdir(self.folder):
-	# 		if file.endswith(('png', 'jpg', 'gif')):
-	# 			image_href_list.append(file)
-	# 	return image_href_list
+	def get_libvar(self):
+		for file in os.listdir(self.folder):
+			if file.startswith('v_'):
+				path = os.path.join(self.folder, file)
+				libvar = ISHFile(path, self)
+				return libvar
+
+	def get_images(self):
+		image_list = []
+		for file in os.listdir(self.folder):
+			if file.endswith(('png', 'jpg', 'gif')):
+				image_list.append(Image(file, self))
+		return set(image_list)
 
 	def rename_all(self):
 		'''
@@ -182,7 +196,7 @@ class DITAMap(DITAProjectFile):
 				pair.update_name()
 				self.rename_counter += 1
 
-	def mass_edit_shortdescriptions(self):
+	def mass_edit(self):
 		'''
 		Mass edit short descriptions for typical documents.
 		'''
@@ -194,11 +208,31 @@ class DITAMap(DITAProjectFile):
 
 		self.list_renamed = []
 		for pair in self.pairs:
-			dita_file = pair.dita
-			if dita_file.title.text in shortdescs.keys() and dita_file.shortdesc_missing():
-				shortdesc = shortdescs[dita_file.title.text]
-				dita_file.set_shortdesc(shortdesc)
-				self.list_renamed.append(dita_file.name)
+			topic = pair.dita
+			if topic.title.text in shortdescs.keys() and topic.shortdesc_missing():
+				shortdesc = shortdescs[topic.title.text]
+				topic.set_shortdesc(shortdesc)
+				self.list_renamed.append(topic.name)
+
+	def insert_nbsps(self):
+		'''
+		Insert empty paragraph after a table before a text paragraph or another table.
+		'''
+		for pair in self.pairs:
+			topic = pair.dita
+			list_vars = list(topic.root.iter('ph'))
+
+			cond_docdetails = (isinstance(topic, ReferenceInformationDITATopic)
+				and len(list_vars) > 0 and list_vars[0].attrib.get('varref') == 'DocTitle')
+			cond_revhistory = (isinstance(topic, ReferenceInformationDITATopic) 
+						and topic.title.text == 'Revision history')
+
+			if cond_docdetails or cond_revhistory:
+
+				empty_paragraph = ET.Element('p')
+				empty_paragraph.text = '\u00A0'
+
+				print(empty_paragraph.tag, empty_paragraph.text)
 
 	def view_shortdescriptions(self):
 		self.problematic_files = [p.dita for p in self.pairs if p.dita.shortdesc_missing()]
@@ -206,8 +240,36 @@ class DITAMap(DITAProjectFile):
 	def edit_image_names(self, image_prefix):
 		# there can be two images with different paths but identical titles
 		# one image can be reference in multiple topics
-			pass
-			
+		# count repeating titles and get image to topic map for purposes of renaming
+		titles = {}
+		image_to_topic = {}
+		for pair in self.pairs:
+			topic = pair.dita
+			for image in topic.images:
+				if image.title is not None:
+					if image.title in titles:
+						titles[image.title] += 1
+						image.temp_title = image.title + ' ' + str(titles[image.title])
+					else:
+						titles[image.title] = 1
+						image.temp_title = image.title
+				topics = image_to_topic.setdefault(image, [])
+				topics.append(topic)
+		# give image files new names
+		for i, topics in image_to_topic.items():
+			new_name = i.generate_name(image_prefix)
+			current_path = os.path.join(self.folder, i.href)
+			new_path = os.path.join(self.folder, new_name)
+			file_rename(current_path, new_path)
+			# rename hrefs in topics
+			for topic in topics:
+				for fig in topic.root.iter('fig'):
+					for img_tag in fig.iter('image'):
+						if img_tag.attrib.get('href') == i.href:
+							print('Renaming', i.href, 'to', new_name)
+							img_tag.set('href', new_name)
+				topic.write()
+
 
 class DITATopic(DITAProjectFile):
 	'''
@@ -215,32 +277,35 @@ class DITATopic(DITAProjectFile):
 	'''
 	def __init__(self, file_path, ditamap):
 		super().__init__(file_path)
-		self.ditamap = ditamap
+		self.ditamap = ditamap # got images, too
 		self.outputclass = self.root.attrib.get('outputclass')
 		self.title = self.root.find('title')
 		self.shortdesc = self.root.find('shortdesc')
-		# self.images = self.get_images()
+		self.local_links = self.root.findall('.//xref[@scope="local"]')
+		self.images = self.get_images()
 
 	def __repr__(self):
 		return '<DITATopic: ' + self.name + '>'
 
 	def __contains__(self, item):
+		contains = False
 		if isinstance(item, Image) and item in self.images:
-			return True
-		return False
+			contains = True
+		if isinstance(item, str) and item in self.local_links:
+			contains = True
+		return contains
 
-	# def get_images(self):
-	# 	topic_images = []
-	# 	for fig in self.root.iter('fig'):
-	# 		image_title = None
-	# 		image_title_tag = fig.find('title')
-	# 		image_href = fig.find('image').attrib.get('href')
-	# 		if image_title_tag is not None and image_href in self.ditamap.image_href_list:
-	# 			image = Image(image_href, self.ditamap)
-	# 			image.title = image_title_tag.text
-	# 			image.topics.append(self)
-	# 			topic_images.append(image)
-	# 	return topic_images
+	def get_images(self):
+		topic_images = []
+		for ditamap_image in self.ditamap.images:
+			ditamap_href = ditamap_image.href
+			for fig in self.root.iter('fig'):
+				topic_image_title = fig.find('title')
+				if fig.find('image').attrib.get('href') == ditamap_href:
+					if topic_image_title is not None:
+						ditamap_image.title = topic_image_title.text.strip()
+					topic_images.append(ditamap_image)
+		return set(topic_images)
 
 	def set_title(self, new_title):
 		# New title is a string
@@ -262,6 +327,9 @@ class DITATopic(DITAProjectFile):
 		return True if self.shortdesc.text == None or self.shortdesc.text == '' or 'SHORT DESCRIPTION' in self.shortdesc.text else False
 
 	def insert_shortdesc_tag(self):
+		"""
+		Adds the <shortdesc> tag to files where this part is completely missing.
+		"""
 		if not self.path:
 			return
 		title_match = '</title>'
@@ -281,19 +349,18 @@ class DITATopic(DITAProjectFile):
 		'''
 		#Compare self.name to name found in links
 		for pair in self.ditamap.pairs:
-			dita_file = pair.dita
-			if dita_file == self:
+			topic = pair.dita
+			topic_local_links = topic.local_links
+			if len(topic_local_links) == 0:
 				continue
-			links = dita_file.root.findall('.//xref[@scope="local"]') # ex. <xref scope="local" href="c_Load_weights.dita">
-			if len(links) == 0:
-				continue
-			for link in links:
-			 	if link.attrib.get('href') == old:
-			 		print(dita_file.name, 'has old link to', self.name, '(%s)' % old)
-			 		link.set('href', self.name)
-			 		print('Updated link href')
-			 		break
-			dita_file.write()
+			for link in topic_local_links:
+				link_href = link.attrib.get('href')
+				if old in link_href:
+			 		print(topic.name, 'has old link to', self.name, '(%s)' % link_href)
+			 		new_name = link_href.replace(old, self.name)
+			 		print('Updated link href:', new_name, '\n')
+			 		link.set('href', new_name)
+			topic.write()
 
 
 class ISHFile(DITAProjectFile):
@@ -303,14 +370,27 @@ class ISHFile(DITAProjectFile):
 	def __init__(self, file_path, ditamap):
 		super().__init__(file_path)
 		self.ditamap = ditamap
-		for ishfield in self.root.iter('ishfield'):
+		self.check_ishobject()
+		ishfields = self.root.find('ishfields')
+		for ishfield in ishfields.findall('ishfield'):
 			if ishfield.attrib.get('name') == 'FTITLE':
-				self.ftitle = ishfield
+				self.ftitle = ishfield.text
 			elif ishfield.attrib.get('name') == 'FMODULETYPE':
-				self.fmoduletype = ishfield
+				if ishfield.text == None and self.basename.startswith('v_'): # library variable processing
+					ishfields.remove(ishfield)
+					self.root.set('ishtype', 'ISHLibrary')
+					self.write()
+				else:
+					self.fmoduletype = ishfield.text
+
 
 	def __repr__(self):
 		return '<ISHFile: ' + self.name + '>'
+
+	def check_ishobject(self):
+		if self.root.tag != 'ishobject':
+			print('Malformed ISH file, no ishobject tag:', self.ish.path)
+			sys.exit()
 
 
 class ReferenceInformationDITATopic(DITATopic):
@@ -355,6 +435,10 @@ class Pair:
 	def __repr__(self):
 		return self.name + ' <.dita, .ish>'
 
+	def __contains__(self, item):
+		if isinstance(item, DITAProjectFile):
+			return True if item == self.dita or item == self.ish else False
+
 	def create_new_name(self):
 		'''
 		Creates a filename that complies with the style guide, based on the document title.
@@ -366,19 +450,23 @@ class Pair:
 			new_name = new_name[2:]
 
 		if self.dita.outputclass in outputclasses.keys():
-				prefix = outputclasses.get(self.dita.outputclass)
-				new_name = prefix + new_name
+			prefix = outputclasses.get(self.dita.outputclass)
+			new_name = prefix + new_name
 		
 		return new_name
 
 	def update_name(self):
-		old_pair = Pair(DITATopic(self.dita.path), ISHFile(self.ish.path))
+		old_pair = Pair(DITATopic(self.dita.path, self.ditamap), ISHFile(self.ish.path, self.ditamap))
 
 		if self.dita.title_missing():
-			print('Skipped: %s, nothing to rename' % old_pair.name)
+			if self.dita.outputclass == 'legalinformation':
+				self.dita.set_title('Legal information')
+				self.dita.set_shortdesc('© Copyright 2017-2019 HP Development Company, L.P.')
+			else:
+				print('Skipped: %s, nothing to rename (title missing)' % old_pair.name)
 		new_name = self.create_new_name()
 		if old_pair.name == new_name:
-			print('Skipped: %s, nothing to rename' % old_pair.name)
+			print('Skipped: %s, already renamed' % old_pair.name)
 			return
 
 		# Rename file
@@ -386,9 +474,9 @@ class Pair:
 		self.dita.name = self.name + self.dita.ext
 		self.dita.path = os.path.join(self.folder, self.dita.name)
 		if os.path.exists(self.dita.path):
-			print('Error, new path already exists:', self.dita.path)
-			return
-		file_rename(old_pair.dita.path, self.dita.path)
+			print('New path already exists:', self.dita.path)
+		else:
+			file_rename(old_pair.dita.path, self.dita.path)
 
 		# Update links to this file throughout the folder
 		self.dita.update_old_links_to_self(old_pair.dita.name)
@@ -410,52 +498,30 @@ class Pair:
 		self.ditamap.write()
 
 
-# class Image:
+class Image:
 
-# 	def __init__(self, href, ditamap):
-# 		self.href = href
-# 		self.ditamap = ditamap
-# 		self.basename, self.ext = os.path.splitext(self.href)
-# 		self.path = os.path.join(self.ditamap.folder, self.href)
-# 		self.topics, self.title = self.get_topics_and_title()
+	def __init__(self, href, ditamap):
+		self.href = href
+		self.ditamap = ditamap
+		self.title = None
+		self.temp_title = None
+		self.ext = '.' + self.href.rsplit('.', 1)[1]
 
-# 	def __repr__(self):
-# 		r = '<Image ' + self.href
-# 		if self.title:
-# 			r = r + ', title: ' + str(self.title)
-# 		r += '>'
-# 		return r
+	def __repr__(self):
+		r = '<Image ' + self.href
+		if self.title:
+			r = r + ': ' + str(self.title)
+		r += '>'
+		return r
 
-# 	def get_topics_and_titles(self):
-# 		# scan all images in all topics
-# 		for pair in self.ditamap.pairs:
-# 			if self in pair.dita.images and self.href in self.ditamap.image_href_list:
-# 				print(self)
-# 		return None
-
-# 	def create_name(self, prefix, repeat):
-# 		if self.title is not None:
-# 			# name the image based on its title
-# 			name = '_'.join(self.title.split(' '))
-# 			if repeat > 0:
-# 				name = name + '_' + str(repeat)
-# 			name += self.ext
-# 		name = 'img_' + prefix + '_' + self.href
-# 		return name
-
-# 	def update_to_meaningful_name(self, prefix):
-		
-# 		pass
-# 		# file_rename(old_image.path, self.path)
-
-		# # find this image in all topics by traversal
-		# for pair in self.ditamap.pairs:
-		# 	if self in pair.dita:
-		# 		for fig in pair.dita.root.iter('fig'):
-		# 			found_image = fig.find('image')
-		# 			if old_image.href == found_image.attrib.get('href'):
-		# 				found_image.set('href', self.href)
-
+	def generate_name(self, prefix):
+		if self.temp_title is not None:
+			# name the image based on its title
+			name = '_'.join(self.temp_title.split(' '))
+		else:
+			name = self.href.rsplit('.', 1)[0]
+		name = 'img_' + prefix + '_' + name + self.ext
+		return name
 
 '''
 Frontend
@@ -467,7 +533,6 @@ class App(Tk):
 		super().__init__()
 		self.title('Cheetah-to-DITA Step 1.5')
 		self.ditamap_var = StringVar() # something used by Tkinter, here acts as a buffer for ditamap path
-		self.image_prefix_var = StringVar()
 		self.ditamap_var.trace('w', self.turn_on_buttons)
 		self.padding = {'padx': 5, 'pady': 5}
 		self.create_widgets()
@@ -489,7 +554,7 @@ class App(Tk):
 	    
 		self.button_mass_edit = Button(self,
 			text = 'Mass edit typical shortdescs',
-			command = self.call_mass_edit_shortdescriptions,
+			command = self.call_mass_edit,
 			state = DISABLED)
 		self.button_mass_edit.grid(row = 1, column = 2, sticky = EW, **self.padding)
 	    
@@ -531,26 +596,7 @@ class App(Tk):
 
 
 	def create_image_prefix_prompt_window(self):
-		self.image_prefix_prompt = Toplevel(self)
-		self.image_prefix_prompt.title = 'Mass edit image names'
-		
-		label_top_text = 'Enter a prefix associated with the document subject.'
-		prompt_label_top = Label(self.image_prefix_prompt, justify = LEFT,
-				text = label_top_text)
-		prompt_label_top.grid(row = 0, column = 0, sticky = NW, **self.padding)
-		
-		label_bottom_text = '(Example: \'inkcab\' for a document about the ink cabinet\nwill produce image names like \'img_inkcab_***\' and \'scr_inkcab_\'.)'
-		prompt_label_bottom = Label(self.image_prefix_prompt, justify = LEFT,
-				text = label_bottom_text)
-		prompt_label_bottom.grid(row = 1, column = 0, sticky = NW, **self.padding)
-
-		prompt_entry = Entry(self.image_prefix_prompt, textvariable=self.image_prefix_var, width=60, bg='white', relief=SUNKEN, bd=4, justify=LEFT)
-		prompt_entry.grid(row = 2, column = 0, sticky = EW, **self.padding)
-
-		save_image_prefix = Button(self.image_prefix_prompt,
-			text = 'OK',
-			command = self.call_edit_image_names)
-		save_image_prefix.grid(row = 2, column = 1, sticky = EW, **self.padding)
+		self.new_window = ImageNamesWindow(self.ditamap)
 	
 	'''
 	Calls to 'backend' functions that actually modify files.
@@ -562,9 +608,9 @@ class App(Tk):
 			rename_msg = 'Processed %s files in map folder.' % str(self.ditamap.rename_counter)
 			messagebox.showinfo(title='Renamed files', message=rename_msg)
 
-	def call_mass_edit_shortdescriptions(self, *args):
+	def call_mass_edit(self, *args):
 		if self.ditamap:
-			self.ditamap.mass_edit_shortdescriptions()
+			self.ditamap.mass_edit()
 			if len(self.ditamap.list_renamed) > 0:
 				mass_edit_msg = 'Edited shortdescs in files:\n\n' + '\n'.join([k for k in self.ditamap.list_renamed])
 			else:
@@ -577,7 +623,7 @@ class App(Tk):
 			problematic_files = self.ditamap.problematic_files
 			open_files_msg = 'Files with missing shortdesc: %s.' % str(len(problematic_files))
 			if len(problematic_files) > 0:
-				open_files_msg += '. Open files one by one?'
+				open_files_msg += ' Open files one by one?'
 			open_files = messagebox.askyesno(title='Missing short desriptions',
 							message=open_files_msg)
 			if open_files:
@@ -598,6 +644,36 @@ class App(Tk):
 					save_filelist_msg = 'Wrote to file ' + status_path + '. Press OK to close the window.'
 					messagebox.showinfo(title='Wrote to file', message=save_filelist_msg)
 
+
+class ImageNamesWindow():
+
+	def __init__(self, ditamap):
+
+		self.image_prefix_var = StringVar()
+		self.ditamap = ditamap
+		self.padding = {'padx': 5, 'pady': 5}
+
+		self.top = Toplevel()
+		self.top.title = 'Mass edit image names'
+		
+		label_top_text = 'Enter a prefix associated with the document subject.'
+		prompt_label_top = Label(self.top, justify = LEFT,
+				text = label_top_text)
+		prompt_label_top.grid(row = 0, column = 0, sticky = NW, **self.padding)
+		
+		label_bottom_text = '(Example: \'inkcab\' for a document about the ink cabinet\nwill produce image names like \'img_inkcab_***\' and \'scr_inkcab_\'.)'
+		prompt_label_bottom = Label(self.top, justify = LEFT,
+				text = label_bottom_text)
+		prompt_label_bottom.grid(row = 1, column = 0, sticky = NW, **self.padding)
+
+		prompt_entry = Entry(self.top, textvariable=self.image_prefix_var, width=60, bg='white', relief=SUNKEN, bd=4, justify=LEFT)
+		prompt_entry.grid(row = 2, column = 0, sticky = EW, **self.padding)
+
+		save_image_prefix = Button(self.top,
+			text = 'OK',
+			command = self.call_edit_image_names)
+		save_image_prefix.grid(row = 2, column = 1, sticky = EW, **self.padding)
+
 	def call_edit_image_names(self):
 		'''
 		Show the image prefix dialog. Remember the prefix.
@@ -605,21 +681,26 @@ class App(Tk):
 		if self.ditamap:
 			prefix = self.image_prefix_var.get()
 			self.ditamap.edit_image_names(prefix)
-
+			messagebox.showinfo(title = 'Mass edit image names', message = 'Images renamed.')
+			self.top.destroy()
 		
 	
     
 ## DONE: change internal links across project
-# TODO: process libvar correctly
-# DONE: Tkinter interface to select the map file
+## DONE: process libvar correctly
+## DONE: Tkinter interface to select the map file
 # TODO: topic titles in Sentence case
-# TODO: add 'img_<userinput>_meaningful_name' to images (track them by GUID and convert fig titles)
+## DONE: add 'img_<userinput>_meaningful_name' to images (track them by GUID and convert fig titles)
 # TODO: insert &nbsp between auxiliary tables
+# TODO: if no images, prevent from opening image window
+# TODO: process draft comments, make user add titles first and foremost
 
 if __name__ == '__main__':
 
-	#app = App()
-	#app.mainloop()
-	ditamap = DITAMap(r'C:\hp_cheetahr5\TS5ES-00011 - Cleaning Station Service\Step1 - Copy\TS5ES-00011.ditamap')
-	ditamap.edit_image_names('CS')
+	app = App()
+	app.mainloop()
+	#ditamap = DITAMap(r'C:\hp_cheetahr5\TS5ES-00011 - Cleaning Station Service\Step1 - Copy\TS5ES-00011.ditamap')
+	#ditamap.insert_nbsps()
 	#ditamap = DITAMap(r'C:\hp_cheetahr5\CA494-24500-01 - How-to One Shot 12000\Step1 - Copy\VASONT-IP_DIG_HTG_CA494-24500_Rev01_10K12K_One-Shot.ditamap')
+	
+	# ditamap = DITAMap(r'C:\hp_cheetahr5\CA494-30210 - Pack Ready Lamination Application\Step1 - Copy\r_IP_DIG_HTG_CA494-30210_Pack_Ready_Lamination_Rev02.ditamap')
