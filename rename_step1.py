@@ -1,10 +1,10 @@
 import re
 import os, sys
 import xml.etree.ElementTree as ET
-import msvcrt as m
 from tkinter import *
 from tkinter import filedialog
 from tkinter import messagebox
+from tkinter import ttk
 
 '''
 This script helps to convert DITA files in Cheetah-to-DITA projects for SDL Tridion Docs.
@@ -283,6 +283,7 @@ class DITATopic(DITAProjectFile):
 		self.shortdesc = self.root.find('shortdesc')
 		self.local_links = self.root.findall('.//xref[@scope="local"]')
 		self.images = self.get_images()
+		self.get_draft_comments()
 
 	def __repr__(self):
 		return '<DITATopic: ' + self.name + '>'
@@ -342,6 +343,11 @@ class DITATopic(DITAProjectFile):
 					contents.insert(ind + 1, shortdesc)
 		with open(self.path, 'w', encoding='utf8') as f:
 			f.writelines(contents)				
+
+	def get_draft_comments(self):
+		draft_comments = []
+		for dc in self.root.iter('draft-comment'):
+			draft_comments.append(dc)
 
 	def update_old_links_to_self(self, old):
 		'''
@@ -535,6 +541,7 @@ class App(Tk):
 		self.ditamap_var = StringVar() # something used by Tkinter, here acts as a buffer for ditamap path
 		self.ditamap_var.trace('w', self.turn_on_buttons)
 		self.padding = {'padx': 5, 'pady': 5}
+		self.no_images = True
 		self.create_widgets()
 
 
@@ -582,6 +589,8 @@ class App(Tk):
 		if file:
 			self.ditamap_var.set(os.path.abspath(file))
 			self.ditamap = DITAMap(self.ditamap_var.get())
+			if len(self.ditamap.images) > 0:
+				self.no_images = False
 
 
 	def turn_on_buttons(self, *args):
@@ -592,7 +601,8 @@ class App(Tk):
 			self.button_rename['state'] = NORMAL
 			self.button_mass_edit['state'] = NORMAL
 			self.button_view_shortdescs['state'] = NORMAL
-			self.button_edit_image_names['state'] = NORMAL
+			if self.no_images == False:
+				self.button_edit_image_names['state'] = NORMAL
 
 
 	def create_image_prefix_prompt_window(self):
@@ -620,30 +630,8 @@ class App(Tk):
 	def call_view_shortdescriptions(self, *args):
 		if self.ditamap:
 			self.ditamap.view_shortdescriptions()
-			problematic_files = self.ditamap.problematic_files
-			open_files_msg = 'Files with missing shortdesc: %s.' % str(len(problematic_files))
-			if len(problematic_files) > 0:
-				open_files_msg += ' Open files one by one?'
-			open_files = messagebox.askyesno(title='Missing short desriptions',
-							message=open_files_msg)
-			if open_files:
-				for dita in self.ditamap.problematic_files:
-					os.system('notepad.exe ' + dita.path)
-			else:
-				save_files = messagebox.askyesno(title='Save files',
-									message='Save file list to document?')
-				if save_files:
-					status_name = 'status_' + self.ditamap.basename + '.txt'
-					status_path = os.path.join(self.ditamap.folder, status_name)
-					if os.path.exists(status_path):
-						open(status_path, 'w').close() # clear the contents
-					with open(status_path, 'a') as status:
-						status.write('Edit shortdescs in the following files:\n\n')
-						for f in problematic_files:
-							status.write(f.path + '\n')
-					save_filelist_msg = 'Wrote to file ' + status_path + '. Press OK to close the window.'
-					messagebox.showinfo(title='Wrote to file', message=save_filelist_msg)
-
+			self.new_window = MissingItemsWindow(self.ditamap)
+			
 
 class ImageNamesWindow():
 
@@ -684,7 +672,72 @@ class ImageNamesWindow():
 			messagebox.showinfo(title = 'Mass edit image names', message = 'Images renamed.')
 			self.top.destroy()
 		
-	
+class MissingItemsWindow():
+
+	def __init__(self, ditamap):
+
+		self.ditamap = ditamap
+		
+		self.top = Toplevel()
+		self.top.title = 'Edit titles and shortdescs'
+
+		label = Label(self.top, justify=LEFT, text='Double-click a file to edit.')
+		label.grid(row=0, column=0, sticky=W)
+
+		save_files = Button(self.top, text='Save list to file', command=self.save_file_list)
+		save_files.grid(row=0, column=1, sticky=E)
+
+		self.table = self.create_table()
+		self.table.grid(row=1, column=0, columnspan=2, sticky=NSEW)
+
+	def create_table(self):
+
+		columns = ['filename', 'title', 'shortdesc', 'draft']
+		table = ttk.Treeview(self.top, columns=columns, show='headings', padding='5 5')
+
+		table.heading('filename', text='File name')
+		table.heading('title', text='Title?')
+		table.heading('shortdesc', text='Shortdesc?')
+		table.heading('draft', text='Draft comment?')
+
+		table.column('filename', minwidth=300, width=500, anchor=W)
+
+		for column in columns[1:]:
+			table.column(column, minwidth=30, width=100, anchor=CENTER, stretch=NO)
+
+		scrollbar = Scrollbar(self.top, orient=VERTICAL, command=table.yview)
+		table.configure(yscroll=scrollbar.set)
+		scrollbar.grid(row=1, column=2, sticky=NS)
+
+		for p in self.ditamap.problematic_files:
+			has_title = 'No' if p.title_missing() else ''
+			has_shortdesc = 'No' if p.shortdesc_missing() else ''
+			table.insert('', END, p.name, text=p.name, values=(p.name, has_title, has_shortdesc))
+			table.tag_bind('')
+
+		table.bind('<Double-1>', self.item_doubleclicked)
+
+		return table
+
+	def item_doubleclicked(self, event):
+		item = self.table.selection()[0]
+		for pair in self.ditamap.pairs:
+			topic = pair.dita
+			if topic.name == self.table.item(item, 'text'):
+				os.system('notepad.exe ' + topic.path)
+
+	def save_file_list(self):
+		status_name = 'status_' + self.ditamap.basename + '.txt'
+		status_path = os.path.join(self.ditamap.folder, status_name)
+		if os.path.exists(status_path):
+			open(status_path, 'w').close() # clear the contents
+		with open(status_path, 'a') as status:
+			status.write('Edit shortdescs in the following files:\n\n')
+			for f in self.ditamap.problematic_files:
+				status.write(f.path + '\n')
+		save_filelist_msg = 'Wrote to file ' + status_path + '. Press OK to close the window.'
+		messagebox.showinfo(title='Wrote to file', message=save_filelist_msg)
+
     
 ## DONE: change internal links across project
 ## DONE: process libvar correctly
