@@ -69,6 +69,7 @@ class DITAProjectFile:
 		self.root = self.tree.getroot()
 		self.header = self.get_header()
 		self.ditamap = None # is assigned during Pair creation
+		self.parent_map = {c: p for p in self.tree.iter() for c in p}
 		
 	def __repr__(self):
 		return '<DITAProjectFile: ' + self.name + self.ext + '>'
@@ -93,6 +94,9 @@ class DITAProjectFile:
 
 	def __hash__(self):
 		return hash(self.path)
+
+	def __sortkey__(self):
+		return self.path
 
 	def get_header(self):
 		header = ''
@@ -129,6 +133,17 @@ class DITAProjectFile:
 				f.seek(0, 0)
 				f.write(self.header + content)
 
+	def add_nbsp_after_table(self):
+		'''
+		Finds the first section and appends a blank paragraph at its end.
+		Adds this tag to the file: <#160;> </#160;>
+		'''
+		for section in self.root.iter('section'):
+			p = ET.SubElement(section, 'p')
+			p.text = '\u00A0'
+			self.write()
+			break
+
 
 class DITAMap(DITAProjectFile):
 	'''
@@ -137,9 +152,7 @@ class DITAMap(DITAProjectFile):
 	def __init__(self, file_path):
 		super().__init__(file_path)
 		self.ditamap = self
-		self.images = self.get_images()
-		self.pairs = self.get_pairs()
-		self.libvar = self.get_libvar()
+		self.refresh()
 
 	def __str__(self):
 		return '<DITAMap: ' + self.name + '>'
@@ -149,6 +162,11 @@ class DITAMap(DITAProjectFile):
 			if item in pair:
 				return True
 		return False
+
+	def refresh(self):
+		self.images = self.get_images()
+		self.pairs = self.get_pairs()
+		self.libvar = self.get_libvar()
 
 	def get_pairs(self):
 		pairs = []
@@ -213,29 +231,15 @@ class DITAMap(DITAProjectFile):
 				shortdesc = shortdescs[topic.title.text]
 				topic.set_shortdesc(shortdesc)
 				self.list_renamed.append(topic.name)
+				if topic.title.text == 'Printing instructions':
+					topic.add_nbsp_after_table()
+			if isinstance(topic, ReferenceInformationDITATopic):
+				topic.process_docdetails()
 
-	def insert_nbsps(self):
-		'''
-		Insert empty paragraph after a table before a text paragraph or another table.
-		'''
-		for pair in self.pairs:
-			topic = pair.dita
-			list_vars = list(topic.root.iter('ph'))
 
-			cond_docdetails = (isinstance(topic, ReferenceInformationDITATopic)
-				and len(list_vars) > 0 and list_vars[0].attrib.get('varref') == 'DocTitle')
-			cond_revhistory = (isinstance(topic, ReferenceInformationDITATopic) 
-						and topic.title.text == 'Revision history')
-
-			if cond_docdetails or cond_revhistory:
-
-				empty_paragraph = ET.Element('p')
-				empty_paragraph.text = '\u00A0'
-
-				print(empty_paragraph.tag, empty_paragraph.text)
-
-	def view_shortdescriptions(self):
-		self.problematic_files = [p.dita for p in self.pairs if p.dita.shortdesc_missing()]
+	def get_problematic_files(self):
+		pfiles = [p.dita for p in self.pairs if p.dita.shortdesc_missing() or p.dita.title_missing() or p.dita.has_draft_comments()]
+		return sorted(pfiles)
 
 	def edit_image_names(self, image_prefix):
 		# there can be two images with different paths but identical titles
@@ -283,7 +287,7 @@ class DITATopic(DITAProjectFile):
 		self.shortdesc = self.root.find('shortdesc')
 		self.local_links = self.root.findall('.//xref[@scope="local"]')
 		self.images = self.get_images()
-		self.get_draft_comments()
+		self.draft_comments = self.get_draft_comments()
 
 	def __repr__(self):
 		return '<DITATopic: ' + self.name + '>'
@@ -327,6 +331,9 @@ class DITATopic(DITAProjectFile):
 			return True
 		return True if self.shortdesc.text == None or self.shortdesc.text == '' or 'SHORT DESCRIPTION' in self.shortdesc.text else False
 
+	def has_draft_comments(self):
+		return True if len(self.draft_comments) > 0 else False
+
 	def insert_shortdesc_tag(self):
 		"""
 		Adds the <shortdesc> tag to files where this part is completely missing.
@@ -347,7 +354,8 @@ class DITATopic(DITAProjectFile):
 	def get_draft_comments(self):
 		draft_comments = []
 		for dc in self.root.iter('draft-comment'):
-			draft_comments.append(dc)
+			draft_comments.append((dc, self.parent_map[dc]))
+		return draft_comments
 
 	def update_old_links_to_self(self, old):
 		'''
@@ -408,6 +416,15 @@ class ReferenceInformationDITATopic(DITATopic):
 	def __repr__(self):
 		return '<DITATopic - RefInfo: ' + self.name + '>'
 
+	def process_docdetails(self):
+		# identify docdetails topic
+		list_vars = list(self.root.iter('ph'))
+		cond_docdetails = len(list_vars) > 0 and list_vars[0].attrib.get('varref') == 'DocTitle'
+		if cond_docdetails:
+			# add short description
+			self.set_shortdesc('Document details')
+			self.add_nbsp_after_table()
+
 
 class ConceptDITATopic(DITATopic):
 
@@ -450,6 +467,7 @@ class Pair:
 		Creates a filename that complies with the style guide, based on the document title.
 		'''
 		new_name = re.sub(r'[\s\W]', '_', self.dita.title.text).replace('___', '_').replace('__', '_').replace('_the_', '_')
+		new_name = re.sub(r'\W+', '', new_name)
 		if new_name.endswith('_'):
 			new_name = new_name[:-1]
 		if new_name[1] == '_':
@@ -526,7 +544,7 @@ class Image:
 			name = '_'.join(self.temp_title.split(' '))
 		else:
 			name = self.href.rsplit('.', 1)[0]
-		name = 'img_' + prefix + '_' + name + self.ext
+		name = 'img_' + prefix + '_' + re.sub(r'\W+', '', name) + self.ext
 		return name
 
 '''
@@ -567,7 +585,7 @@ class App(Tk):
 	    
 		self.button_view_shortdescs = Button(self,
 			text = 'Edit missing shortdescs',
-			command = self.call_view_shortdescriptions,
+			command = self.call_get_problematic_files,
 			state = DISABLED)
 		self.button_view_shortdescs.grid(row = 2, column = 1, sticky = EW, **self.padding)
 
@@ -591,6 +609,7 @@ class App(Tk):
 			self.ditamap = DITAMap(self.ditamap_var.get())
 			if len(self.ditamap.images) > 0:
 				self.no_images = False
+			self.turn_on_buttons()
 
 
 	def turn_on_buttons(self, *args):
@@ -603,10 +622,13 @@ class App(Tk):
 			self.button_view_shortdescs['state'] = NORMAL
 			if self.no_images == False:
 				self.button_edit_image_names['state'] = NORMAL
+			else:
+				self.button_edit_image_names['state'] = DISABLED
 
 
 	def create_image_prefix_prompt_window(self):
-		self.new_window = ImageNamesWindow(self.ditamap)
+		new_window = ImageNamesWindow(self.ditamap)
+		# new_window.top.call('wm', 'attributes', '.', '-topmost', 'true')
 	
 	'''
 	Calls to 'backend' functions that actually modify files.
@@ -627,11 +649,10 @@ class App(Tk):
 				mass_edit_msg = 'Nothing to rename automatically.'
 			messagebox.showinfo(title='Mass edited files', message=mass_edit_msg)
 
-	def call_view_shortdescriptions(self, *args):
+	def call_get_problematic_files(self, *args):
 		if self.ditamap:
-			self.ditamap.view_shortdescriptions()
-			self.new_window = MissingItemsWindow(self.ditamap)
-			
+			new_window = MissingItemsWindow(self.ditamap)
+
 
 class ImageNamesWindow():
 
@@ -672,59 +693,98 @@ class ImageNamesWindow():
 			messagebox.showinfo(title = 'Mass edit image names', message = 'Images renamed.')
 			self.top.destroy()
 		
-class MissingItemsWindow():
+
+class MissingItemsWindow(Tk):
 
 	def __init__(self, ditamap):
 
-		self.ditamap = ditamap
+		super().__init__()
 		
-		self.top = Toplevel()
-		self.top.title = 'Edit titles and shortdescs'
+		self.ditamap = ditamap
+		self.padding = {'padx': 7, 'pady': 7}
+		
+		self.title('Edit titles and shortdescs')
+		self.resizable(1,1)
+		self.width = self.winfo_screenwidth()
+		self.height = self.winfo_screenheight()
+		# self.geometry('%dx%d' % (self.width/2, self.height/2))
+		self.create_table_frame()
+		self.topic_text = self.create_text_frame()
 
-		label = Label(self.top, justify=LEFT, text='Double-click a file to edit.')
-		label.grid(row=0, column=0, sticky=W)
+		self.grid_columnconfigure(0, weight=1)
+		self.grid_columnconfigure(1, weight=1)
 
-		save_files = Button(self.top, text='Save list to file', command=self.save_file_list)
-		save_files.grid(row=0, column=1, sticky=E)
+	def create_table_frame(self):
+
+		self.table_frame = Frame(self)
+		# self.table_frame.pack(fill='both', expand=True, side=LEFT)
+		self.table_frame.grid(row=0, column=0, sticky=NS)
+
+		label = Label(self.table_frame, justify=LEFT, text='Double-click a file to edit.')
+		label.grid(row=0, column=0, sticky=EW, **self.padding)
+
+		refresh = Button(self.table_frame, text='Refresh', command=self.refresh_table)
+		refresh.grid(row=0, column=0, sticky=EW, **self.padding)
+
+		save_files = Button(self.table_frame, text='Save list to file', command=self.save_file_list)
+		save_files.grid(row=0, column=1, sticky=EW, **self.padding)
 
 		self.table = self.create_table()
-		self.table.grid(row=1, column=0, columnspan=2, sticky=NSEW)
+		self.table.grid(row=1, column=0, columnspan=4, sticky=NS, **self.padding)
+		self.fill_table()
 
 	def create_table(self):
 
 		columns = ['filename', 'title', 'shortdesc', 'draft']
-		table = ttk.Treeview(self.top, columns=columns, show='headings', padding='5 5')
+		table = ttk.Treeview(
+				self.table_frame,
+				columns=columns,
+				show='headings',
+				padding='10 10',
+				height=25,
+				selectmode='browse')
 
 		table.heading('filename', text='File name')
 		table.heading('title', text='Title?')
 		table.heading('shortdesc', text='Shortdesc?')
 		table.heading('draft', text='Draft comment?')
 
-		table.column('filename', minwidth=300, width=500, anchor=W)
+		table.column('filename', minwidth=100, width=250, anchor=W)
+		table.column('title', minwidth=100, width=200, anchor=W)
 
-		for column in columns[1:]:
-			table.column(column, minwidth=30, width=100, anchor=CENTER, stretch=NO)
+		for column in columns[2:]:
+			table.column(column, minwidth=30, width=100, anchor=CENTER)
 
-		scrollbar = Scrollbar(self.top, orient=VERTICAL, command=table.yview)
+		scrollbar = Scrollbar(self.table_frame, orient=VERTICAL, command=table.yview)
 		table.configure(yscroll=scrollbar.set)
-		scrollbar.grid(row=1, column=2, sticky=NS)
+		scrollbar.grid(row=1, column=4, sticky=NS)
 
-		for p in self.ditamap.problematic_files:
-			has_title = 'No' if p.title_missing() else ''
-			has_shortdesc = 'No' if p.shortdesc_missing() else ''
-			table.insert('', END, p.name, text=p.name, values=(p.name, has_title, has_shortdesc))
-			table.tag_bind('')
-
-		table.bind('<Double-1>', self.item_doubleclicked)
+		table.tag_bind('')
+		table.bind('<<TreeviewSelect>>', self.item_selected)
 
 		return table
 
-	def item_doubleclicked(self, event):
-		item = self.table.selection()[0]
+	def item_selected(self, event):
+		item = self.table.selection()
 		for pair in self.ditamap.pairs:
 			topic = pair.dita
 			if topic.name == self.table.item(item, 'text'):
-				os.system('notepad.exe ' + topic.path)
+				self.open_topic = topic
+				self.fill_text_frame(self.open_topic)
+				
+	def fill_table(self):
+		pfiles = self.ditamap.get_problematic_files()
+		for p in pfiles:
+			has_title = '-' if p.title_missing() else p.title.text
+			has_shortdesc = '-' if p.shortdesc_missing() else p.shortdesc.text
+			has_draft_comments = 'Yes' if len(p.draft_comments) > 0 else ''
+			self.table.insert('', END, p.name, text=p.name, values=(p.name, has_title, has_shortdesc, has_draft_comments))
+			self.attributes('-topmost', True)
+
+	def refresh_table(self):
+		for item in self.table.get_children():
+			self.table.delete(item)
+		self.fill_table()
 
 	def save_file_list(self):
 		status_name = 'status_' + self.ditamap.basename + '.txt'
@@ -733,27 +793,83 @@ class MissingItemsWindow():
 			open(status_path, 'w').close() # clear the contents
 		with open(status_path, 'a') as status:
 			status.write('Edit shortdescs in the following files:\n\n')
-			for f in self.ditamap.problematic_files:
+			for f in self.ditamap.get_problematic_files():
 				status.write(f.path + '\n')
 		save_filelist_msg = 'Wrote to file ' + status_path + '. Press OK to close the window.'
 		messagebox.showinfo(title='Wrote to file', message=save_filelist_msg)
 
+	def create_text_frame(self):
+		file_frame = Frame(self)
+		file_frame.grid(row=0, column=1, sticky=EW)
+
+		self.title_button = Button(file_frame, text='Edit title', command=self.edit_title, state=DISABLED)
+		self.title_button.grid(row=0, column=0, sticky=EW)
+
+		self.shortdesc_button = Button(file_frame, text='Edit shortdesc', command=self.edit_shortdesc, state=DISABLED)
+		self.shortdesc_button.grid(row=0, column=1, sticky=EW)
+
+		self.open_button = Button(file_frame, text='Open in Notepad', command=self.open_simple, state=DISABLED)
+		self.open_button.grid(row=0, column=2, sticky=EW)
+
+		topic_text = Text(file_frame, width=50, height=25, wrap='word')
+		topic_text.grid(row=1, column=0, columnspan=3, sticky=NSEW, **self.padding)
+		topic_text.insert(END, 'Click a file to preview.')
+		topic_text.config(state=DISABLED)
+
+		scrollbar = Scrollbar(file_frame)
+		scrollbar.grid(row=1, column=3, sticky=NS)
+		topic_text.config(yscrollcommand=scrollbar.set)
+		scrollbar.config(command=topic_text.yview)
+
+		return topic_text
+
+	def fill_text_frame(self, topic):
+		self.topic_text.config(state=NORMAL)
+		self.topic_text.delete('1.0', END)
+		self.topic_text.tag_configure('highlight', background='#AA66AA')
+		for elem in topic.root.iter():
+			text = (elem.text.strip() + '\n') if elem.text is not None else ''
+			title_not_found = (elem.tag == 'title' and topic.title_missing())
+			shortdesc_not_found = (elem.tag == 'shortdesc' and topic.shortdesc_missing())
+			draft_comment_found = (elem.tag == 'draft-comment')
+			if title_not_found or shortdesc_not_found or draft_comment_found:
+				self.topic_text.insert(END, text, ('highlight'))
+			else:
+				self.topic_text.insert(END, text)
+		self.topic_text.config(state=DISABLED)
+
+		self.title_button.config(state=NORMAL)
+		self.shortdesc_button.config(state=NORMAL)
+		self.open_button.config(state=NORMAL)
+
+	def edit_title(self):
+		pass
+
+	def edit_shortdesc(self):
+		pass
+
+	def open_simple(self):
+		self.attributes('-topmost', False)
+		os.system('notepad.exe ' + self.open_topic.path)
+		self.attributes('-topmost', True)
+		
     
 ## DONE: change internal links across project
 ## DONE: process libvar correctly
 ## DONE: Tkinter interface to select the map file
-# TODO: topic titles in Sentence case
 ## DONE: add 'img_<userinput>_meaningful_name' to images (track them by GUID and convert fig titles)
-# TODO: insert &nbsp between auxiliary tables
-# TODO: if no images, prevent from opening image window
+## DONE: if no images, prevent from opening image window
+# TODO: topic titles in Sentence case
+## DONE: insert &nbsp between auxiliary tables
 # TODO: process draft comments, make user add titles first and foremost
+# TODO: "commit" and "roll back" operations like renaming. maybe even reversing?
+# TODO: treeview items that are inside the context topics in the map (to understand what they are about)
 
 if __name__ == '__main__':
 
 	app = App()
 	app.mainloop()
-	#ditamap = DITAMap(r'C:\hp_cheetahr5\TS5ES-00011 - Cleaning Station Service\Step1 - Copy\TS5ES-00011.ditamap')
-	#ditamap.insert_nbsps()
+	# ditamap = DITAMap(r'C:\hp_cheetahr5\TS5ES-00011 - Cleaning Station Service\Step1 - Copy\TS5ES-00011.ditamap')
 	#ditamap = DITAMap(r'C:\hp_cheetahr5\CA494-24500-01 - How-to One Shot 12000\Step1 - Copy\VASONT-IP_DIG_HTG_CA494-24500_Rev01_10K12K_One-Shot.ditamap')
 	
 	# ditamap = DITAMap(r'C:\hp_cheetahr5\CA494-30210 - Pack Ready Lamination Application\Step1 - Copy\r_IP_DIG_HTG_CA494-30210_Pack_Ready_Lamination_Rev02.ditamap')
