@@ -17,7 +17,8 @@ prefixes = {
     'explanation': 'e_',
     'referenceinformation': 'r_',
     'context': 'c_',
-    'procedure': 't_'
+    'procedure': 't_',
+    'legalinformation': 'e_'
 }
 
 # Document type, indicated in the first content tag. Example: <task id=... outputclass="procedure">
@@ -56,6 +57,13 @@ def file_delete(path):
 			os.remove(path)
 	else:
 		print('Error, no file to delete:', path)
+
+
+def text_element(tag, text, *args, **kwargs):
+    element = ET.Element(tag, *args, **kwargs)
+    element.text = text
+    return element
+
 
 class DITAProjectFile:
 	'''
@@ -170,23 +178,28 @@ class DITAMap(DITAProjectFile):
 
 	def get_pairs(self):
 		pairs = []
+		mappings = {
+				'referenceinformation': 'ReferenceInformationDITATopic(topic_path, self)',
+				'concept': 'ConceptDITATopic(topic_path, self)',
+				'procedure': 'TaskDITATopic(topic_path, self)',
+				'legalinformation': 'LegalInformationDITATopic(topic_path, self)',
+				'lpcontext': 'ConceptDITATopic(topic_path, self)'
+		}
 		for topicref in self.root.iter('topicref'):
 			topic_path = os.path.join(self.folder, topicref.attrib.get('href'))
 			if os.path.exists(topic_path):
-				topic = DITATopic(topic_path, self)
+				oc = ET.parse(topic_path).getroot().attrib.get('outputclass')
+				if oc in mappings.keys():
+					topic = eval(mappings[oc])
+				else:
+					topic = DITATopic(topic_path, self)
+				ish_path = topic_path.replace('.dita', '.3sish')
+				ish = ISHFile(ish_path, self)
+				pair = Pair(topic, ish)
+				pairs.append(pair)
 			else:
 				print('Cannot create DITAProjectFile from path %s. Aborting.' % topic_path)
 				sys.exit()
-			if topic.outputclass == 'referenceinformation':
-				topic = ReferenceInformationDITATopic(topic_path, self)
-			elif topic.outputclass == 'concept':
-				topic = ConceptDITATopic(topic_path, self)
-			elif topic.outputclass == 'task':
-				topic = TaskDITATopic(topic_path, self)
-			ish_path = topic_path.replace('.dita', '.3sish')
-			ish = ISHFile(ish_path, self)
-			pair = Pair(topic, ish)
-			pairs.append(pair)
 		return set(pairs)
 
 	def get_libvar(self):
@@ -206,13 +219,22 @@ class DITAMap(DITAProjectFile):
 	def rename_all(self):
 		'''
 		Rename files in map folder according to their titles and the style guide.
+		Tracks repeating topic titles.
 		'''
 		old_pairs = [Pair(p.dita, p.ish) for p in self.pairs]
 		self.rename_counter = 0
+		topic_titles = {}
 		for pair in self.pairs:
-			if pair.dita.root.tag in doctypes and not pair.dita.title_missing():
-				pair.update_name()
+			if pair.dita.root.tag in doctypes:
+				t = pair.dita.title.text
+				if t in topic_titles:
+					topic_titles[t] += 1
+				else:
+					topic_titles[t] = 1
+				num_rep = topic_titles[t]
+				pair.update_name(num_rep)
 				self.rename_counter += 1
+		print(topic_titles)
 
 	def mass_edit(self):
 		'''
@@ -235,7 +257,6 @@ class DITAMap(DITAProjectFile):
 					topic.add_nbsp_after_table()
 			if isinstance(topic, ReferenceInformationDITATopic):
 				topic.process_docdetails()
-
 
 	def get_problematic_files(self):
 		pfiles = [p.dita for p in self.pairs if p.dita.shortdesc_missing() or p.dita.title_missing() or p.dita.has_draft_comments()]
@@ -281,13 +302,15 @@ class DITATopic(DITAProjectFile):
 	'''
 	def __init__(self, file_path, ditamap):
 		super().__init__(file_path)
-		self.ditamap = ditamap # got images, too
+		self.ditamap = ditamap
 		self.outputclass = self.root.attrib.get('outputclass')
 		self.title = self.root.find('title')
 		self.shortdesc = self.root.find('shortdesc')
+		if self.shortdesc is None:
+			self.insert_shortdesc_tag()
 		self.local_links = self.root.findall('.//xref[@scope="local"]')
 		self.images = self.get_images()
-		self.draft_comments = self.get_draft_comments()
+		self.draft_comments = self.get_draft_comments()	
 
 	def __repr__(self):
 		return '<DITATopic: ' + self.name + '>'
@@ -314,20 +337,25 @@ class DITATopic(DITAProjectFile):
 
 	def set_title(self, new_title):
 		# New title is a string
-		self.title.text = new_title
-		self.write()
+		if self.title is not None:
+			self.title.text = new_title
+			self.write()
 
 	def set_shortdesc(self, new_shortdesc):
 		# New shortdesc is a string
-		self.shortdesc.text = new_shortdesc
-		self.write()
+		if self.shortdesc is None:
+			self.insert_shortdesc_tag()
+		else:
+			self.shortdesc.text = new_shortdesc
+			self.write()
 
 	def title_missing(self):
+		if self.title is None:
+			return True
 		return True if self.title.text == None or 'MISSING TITLE' in self.title.text else False
 
 	def shortdesc_missing(self):
-		if self.shortdesc == None:
-			self.insert_shortdesc_tag()
+		if self.shortdesc is None:
 			return True
 		return True if self.shortdesc.text == None or self.shortdesc.text == '' or 'SHORT DESCRIPTION' in self.shortdesc.text else False
 
@@ -340,16 +368,12 @@ class DITATopic(DITAProjectFile):
 		"""
 		if not self.path:
 			return
-		title_match = '</title>'
-		shortdesc = '   <shortdesc>SHORT DESCRIPTION</shortdesc>\n'
-		with open(self.path, 'r', encoding='utf8') as f:
-			contents = f.readlines()
-			for line in contents:
-				if title_match in line:
-					ind = contents.index(line)
-					contents.insert(ind + 1, shortdesc)
-		with open(self.path, 'w', encoding='utf8') as f:
-			f.writelines(contents)				
+		shortdesc_parent = self.parent_map[self.title]
+		if len(shortdesc_parent.findall('shortdesc')) == 0:
+			shortdesc = text_element('shortdesc', 'SHORT DESCRIPTION')
+			shortdesc_parent.insert(1, shortdesc)
+			self.write()	
+		self.shortdesc = self.root.find('shortdesc')	
 
 	def get_draft_comments(self):
 		draft_comments = []
@@ -411,7 +435,7 @@ class ReferenceInformationDITATopic(DITATopic):
 
 	def __init__(self, file_path, ditamap):
 		super().__init__(file_path, ditamap)
-		assert self.outputclass == 'referenceinformation'
+		assert self.outputclass == 'referenceinformation' or self.outputclass == 'legalinformation'
 
 	def __repr__(self):
 		return '<DITATopic - RefInfo: ' + self.name + '>'
@@ -420,17 +444,45 @@ class ReferenceInformationDITATopic(DITATopic):
 		# identify docdetails topic
 		list_vars = list(self.root.iter('ph'))
 		cond_docdetails = len(list_vars) > 0 and list_vars[0].attrib.get('varref') == 'DocTitle'
-		if cond_docdetails:
+		if cond_docdetails and self.shortdesc_missing():
 			# add short description
 			self.set_shortdesc('Document details')
 			self.add_nbsp_after_table()
+
+
+class LegalInformationDITATopic(DITATopic):
+
+	def __init__(self, file_path, ditamap):
+		super().__init__(file_path, ditamap)
+		assert self.outputclass == 'legalinformation'
+
+	def __repr__(self):
+		return '<DITATopic - LegalInfo: ' + self.name + '>'
+
+	def add_title_and_shortdesc(self):
+		self.set_title('Legal information')
+		self.insert_shortdesc_tag()
+		if self.shortdesc.find('ph') is None:
+			ph = ET.Element('ph', attrib={'varref': 'CopyrightYear'})
+			ph.tail = ' HP Development Company, L.P.'
+			self.shortdesc.insert(0, ph)
+			self.set_shortdesc('© Copyright ')
+			redundant_p = None
+			for first_level in self.root:
+				for x in first_level:
+					if 'outputclass' in x.attrib.keys() and x.attrib['outputclass'] == 'copyright':
+						redundant_p = x[0]
+						if "Copyright" in redundant_p.text:
+							x.remove(redundant_p)
+							self.write()
+							return
 
 
 class ConceptDITATopic(DITATopic):
 
 	def __init__(self, file_path, ditamap):
 		super().__init__(file_path, ditamap)
-		assert self.outputclass == 'concept'
+		assert self.outputclass == 'concept' or self.outputclass == 'lpcontext'
 
 	def __repr__(self):
 		return '<DITATopic - Concept: ' + self.name + '>'
@@ -454,6 +506,7 @@ class Pair:
 		self.name = dita_obj.basename
 		self.folder = dita_obj.folder
 		self.ditamap = self.dita.ditamap
+		#self.guid = self.ish.root.attrib['ishref']
 
 	def __repr__(self):
 		return self.name + ' <.dita, .ish>'
@@ -462,9 +515,10 @@ class Pair:
 		if isinstance(item, DITAProjectFile):
 			return True if item == self.dita or item == self.ish else False
 
-	def create_new_name(self):
+	def create_new_name(self, num_rep):
 		'''
 		Creates a filename that complies with the style guide, based on the document title.
+		Takes into account repeating titles of different topics.
 		'''
 		new_name = re.sub(r'[\s\W]', '_', self.dita.title.text).replace('___', '_').replace('__', '_').replace('_the_', '_')
 		new_name = re.sub(r'\W+', '', new_name)
@@ -476,50 +530,59 @@ class Pair:
 		if self.dita.outputclass in outputclasses.keys():
 			prefix = outputclasses.get(self.dita.outputclass)
 			new_name = prefix + new_name
+
+		if num_rep > 1:
+			new_name = new_name + '_' + str(num_rep)
 		
 		return new_name
 
-	def update_name(self):
+	def update_name(self, num_rep):
+		'''
+		Updates pair file names and links to them in all the documents.
+		Takes into account repeating titles of different topics.
+		'''
 		old_pair = Pair(DITATopic(self.dita.path, self.ditamap), ISHFile(self.ish.path, self.ditamap))
+		print('Updating name:', old_pair)
+		print()
+
+		if isinstance(self.dita, LegalInformationDITATopic):
+			self.dita.add_title_and_shortdesc()
 
 		if self.dita.title_missing():
-			if self.dita.outputclass == 'legalinformation':
-				self.dita.set_title('Legal information')
-				self.dita.set_shortdesc('© Copyright 2017-2019 HP Development Company, L.P.')
-			else:
-				print('Skipped: %s, nothing to rename (title missing)' % old_pair.name)
-		new_name = self.create_new_name()
-		if old_pair.name == new_name:
-			print('Skipped: %s, already renamed' % old_pair.name)
-			return
-
-		# Rename file
-		self.name = new_name
-		self.dita.name = self.name + self.dita.ext
-		self.dita.path = os.path.join(self.folder, self.dita.name)
-		if os.path.exists(self.dita.path):
-			print('New path already exists:', self.dita.path)
+			print('Skipped: %s, nothing to rename (title missing)' % old_pair.name)
 		else:
-			file_rename(old_pair.dita.path, self.dita.path)
+			new_name = self.create_new_name(num_rep)
+			if old_pair.name == new_name:
+				print('Skipped: %s, already renamed' % old_pair.name)
+				return
 
-		# Update links to this file throughout the folder
-		self.dita.update_old_links_to_self(old_pair.dita.name)
-		
-		# Rename metadata file
-		self.ish.ftitle = new_name
-		self.ish.name = new_name + self.ish.ext
-		self.ish.path = os.path.join(self.ish.folder, self.ish.name)
-		self.ish.write()
-		file_delete(old_pair.ish.path)
+			# Rename file
+			self.name = new_name
+			self.dita.name = self.name + self.dita.ext
+			self.dita.path = os.path.join(self.folder, self.dita.name)
+			if os.path.exists(self.dita.path):
+				print('New path already exists:', self.dita.path)
+			else:
+				file_rename(old_pair.dita.path, self.dita.path)
 
-		# Update topicrefs in map
-		for topicref in self.ditamap.root.iter('topicref'):
-			if topicref.attrib.get('href') == old_pair.dita.name:
-				if old_pair.dita.name == self.dita.name:
-					print('Skipped in map: %s, nothing to rename' % old_pair.dita.name)
-					continue
-				topicref.set('href', self.dita.name)
-		self.ditamap.write()
+			# Update links to this file throughout the folder
+			self.dita.update_old_links_to_self(old_pair.dita.name)
+			
+			# Rename metadata file
+			self.ish.ftitle = new_name
+			self.ish.name = new_name + self.ish.ext
+			self.ish.path = os.path.join(self.ish.folder, self.ish.name)
+			self.ish.write()
+			file_delete(old_pair.ish.path)
+
+			# Update topicrefs in map
+			for topicref in self.ditamap.root.iter('topicref'):
+				if topicref.attrib.get('href') == old_pair.dita.name:
+					if old_pair.dita.name == self.dita.name:
+						print('Skipped in map: %s, nothing to rename' % old_pair.dita.name)
+						continue
+					topicref.set('href', self.dita.name)
+			self.ditamap.write()
 
 
 class Image:
@@ -595,8 +658,12 @@ class App(Tk):
 			state = DISABLED)
 		self.button_edit_image_names.grid(row = 2, column = 2, sticky = EW, **self.padding)
 
-		button_exit = Button(self, text = 'Exit', command = self.destroy)
+		button_exit = Button(self, text = 'Exit', command = self.exit)
 		button_exit.grid(row = 2, column = 0, sticky = SW, **self.padding)
+
+	def exit(self):
+		self.destroy()
+		sys.exit()
 
 
 	def get_ditamap_name(self):
@@ -709,7 +776,7 @@ class MissingItemsWindow(Tk):
 		self.height = self.winfo_screenheight()
 		# self.geometry('%dx%d' % (self.width/2, self.height/2))
 		self.create_table_frame()
-		self.topic_text = self.create_text_frame()
+		self.create_text_frame()
 
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_columnconfigure(1, weight=1)
@@ -773,6 +840,7 @@ class MissingItemsWindow(Tk):
 				self.fill_text_frame(self.open_topic)
 				
 	def fill_table(self):
+		self.ditamap.refresh()
 		pfiles = self.ditamap.get_problematic_files()
 		for p in pfiles:
 			has_title = '-' if p.title_missing() else p.title.text
@@ -811,17 +879,15 @@ class MissingItemsWindow(Tk):
 		self.open_button = Button(file_frame, text='Open in Notepad', command=self.open_simple, state=DISABLED)
 		self.open_button.grid(row=0, column=2, sticky=EW)
 
-		topic_text = Text(file_frame, width=50, height=25, wrap='word')
-		topic_text.grid(row=1, column=0, columnspan=3, sticky=NSEW, **self.padding)
-		topic_text.insert(END, 'Click a file to preview.')
-		topic_text.config(state=DISABLED)
+		self.topic_text = Text(file_frame, width=50, height=25, wrap='word')
+		self.topic_text.grid(row=1, column=0, columnspan=3, sticky=NSEW, **self.padding)
+		self.topic_text.insert(END, 'Click a file to preview.')
+		self.topic_text.config(state=DISABLED)
 
 		scrollbar = Scrollbar(file_frame)
 		scrollbar.grid(row=1, column=3, sticky=NS)
-		topic_text.config(yscrollcommand=scrollbar.set)
-		scrollbar.config(command=topic_text.yview)
-
-		return topic_text
+		self.topic_text.config(yscrollcommand=scrollbar.set)
+		scrollbar.config(command=self.topic_text.yview)
 
 	def fill_text_frame(self, topic):
 		self.topic_text.config(state=NORMAL)
@@ -859,7 +925,6 @@ class MissingItemsWindow(Tk):
 ## DONE: Tkinter interface to select the map file
 ## DONE: add 'img_<userinput>_meaningful_name' to images (track them by GUID and convert fig titles)
 ## DONE: if no images, prevent from opening image window
-# TODO: topic titles in Sentence case
 ## DONE: insert &nbsp between auxiliary tables
 # TODO: process draft comments, make user add titles first and foremost
 # TODO: "commit" and "roll back" operations like renaming. maybe even reversing?
@@ -869,7 +934,10 @@ if __name__ == '__main__':
 
 	app = App()
 	app.mainloop()
-	# ditamap = DITAMap(r'C:\hp_cheetahr5\TS5ES-00011 - Cleaning Station Service\Step1 - Copy\TS5ES-00011.ditamap')
-	#ditamap = DITAMap(r'C:\hp_cheetahr5\CA494-24500-01 - How-to One Shot 12000\Step1 - Copy\VASONT-IP_DIG_HTG_CA494-24500_Rev01_10K12K_One-Shot.ditamap')
-	
-	# ditamap = DITAMap(r'C:\hp_cheetahr5\CA494-30210 - Pack Ready Lamination Application\Step1 - Copy\r_IP_DIG_HTG_CA494-30210_Pack_Ready_Lamination_Rev02.ditamap')
+	#ditamap = DITAMap(r'C:\hp_cheetahr5\CA494-25020 - Supplies Best Practices\Step1 - Copy\CA494-25020_Rev04_Supplies_Best_Practice_S4.ditamap')
+	#ditamap.rename_all()
+	# topic = DITATopic(r'C:\hp_cheetahr5\CA494-25020 - Supplies Best Practices\Step1 - Copy\c_VASONT-IP_DIG_HTG_CA494-25020_Rev04_Supplies_Best_Practice_S4-3_4_7.dita', ditamap)
+	# ish = ISHFile(r'C:\hp_cheetahr5\CA494-25020 - Supplies Best Practices\Step1 - Copy\c_VASONT-IP_DIG_HTG_CA494-25020_Rev04_Supplies_Best_Practice_S4-3_4_7.3sish', ditamap)
+	# pair = Pair(topic, ish)
+	# pair.update_name(2)
+
