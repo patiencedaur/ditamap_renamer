@@ -349,8 +349,10 @@ class DITATopic(DITAProjectFile):
             ditamap_href = ditamap_image.href
             for fig in self.root.iter('fig'):
                 topic_image_title = fig.find('title')
+                if topic_image_title is None:
+                    continue
                 if fig.find('image').attrib.get('href') == ditamap_href:
-                    if topic_image_title is not None:
+                    if topic_image_title.text is not None:
                         ditamap_image.title = topic_image_title.text.strip()
                     topic_images.append(ditamap_image)
         return set(topic_images)
@@ -484,20 +486,21 @@ class LegalInformationDITATopic(DITATopic):
     def add_title_and_shortdesc(self):
         self.set_title('Legal information')
         self.insert_shortdesc_tag()
-        if self.shortdesc.find('ph') is None:
-            ph = ET.Element('ph', attrib={'varref': 'CopyrightYear'})
-            ph.tail = ' HP Development Company, L.P.'
-            self.shortdesc.insert(0, ph)
-            self.set_shortdesc('© Copyright ')
-            redundant_p = None
-            for first_level in self.root:
-                for x in first_level:
-                    if 'outputclass' in x.attrib.keys() and x.attrib['outputclass'] == 'copyright':
-                        redundant_p = x[0]
-                        if "Copyright" in redundant_p.text:
-                            x.remove(redundant_p)
-                            self.write()
-                            return
+        # if self.shortdesc.find('ph') is None:
+        #     ph = ET.Element('ph', attrib={'varref': 'CopyrightYear'})
+        #     ph.tail = ' HP Development Company, L.P.'
+        #     self.shortdesc.insert(0, ph)
+        #     self.set_shortdesc('© Copyright ')
+        #     redundant_p = None
+        for first_level in self.root:
+            for x in first_level:
+                if 'outputclass' in x.attrib.keys() and x.attrib['outputclass'] == 'copyright':
+                    redundant_p = x[0]
+                    if "Copyright" in redundant_p.text:
+                        self.set_shortdesc(redundant_p.text)
+                        x.remove(redundant_p)
+                        self.write()
+                        return
 
 
 class ConceptDITATopic(DITATopic):
@@ -647,7 +650,7 @@ class App(Tk):
     def __init__(self):
         super().__init__()
         self.ditamap = None
-        self.title('MaryTreat - Cheetah-to-DITA 1.5 Conversion Step')
+        self.title('MaryTreat - Cheetah-to-DITA Conversion Step No. 1.5')
         self.ditamap_var = StringVar()  # something used by Tkinter, here acts as a buffer for ditamap path
         self.ditamap_var.trace('w', self.turn_on_buttons)
         self.padding = {'padx': 5, 'pady': 5}
