@@ -3,19 +3,18 @@ from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import ttk
 import subprocess
-from cheetah_to_dita import *
-from mary_debug import debugmethods
+from local import *
 
 
 class MainFrame(ttk.Frame):
     pass
 
-@debugmethods
+
 class App(Tk):
 
     def __init__(self) -> None:
         super().__init__()
-        self.ditamap: LocalMapFromCheetah | None = None
+        self.ditamap: LocalMap | None = None
         self.title('MaryTreat - Cheetah-to-DITA Conversion Step No. 1.5')
         self.ditamap_var = StringVar()  # something used by Tkinter, here acts as a buffer for ditamap path
         self.ditamap_var.trace('w', self.turn_on_buttons)
@@ -31,7 +30,7 @@ class App(Tk):
 
         self.button_rename = Button(self,
                                     text='Rename folder items',
-                                    command=self.call_rename_pairs,
+                                    command=self.call_rename_topics,
                                     state=DISABLED)
         self.button_rename.grid(row=1, column=1, sticky=EW, **self.padding)
 
@@ -68,7 +67,8 @@ class App(Tk):
         if file:
             self.ditamap_var.set(os.path.abspath(file))
             print('var:', self.ditamap_var.get())
-            self.ditamap = LocalMapFromCheetah(self.ditamap_var.get())
+            self.ditamap = LocalMap(self.ditamap_var.get())
+            print(self.ditamap.image_folder)
             if len(self.ditamap.images) > 0:
                 self.no_images = False
             self.turn_on_buttons()
@@ -95,10 +95,10 @@ class App(Tk):
     Calls to 'backend' functions that actually modify files.
     '''
 
-    def call_rename_pairs(self, *args):
+    def call_rename_topics(self, *args):
         if self.ditamap:
-            number_renamed_files = self.ditamap.rename_pairs()
-            rename_msg = 'Processed %s files in map folder.' % str(number_renamed_files)
+            number_renamed_topics = self.ditamap.rename_topics()
+            rename_msg = 'Processed %s topics in map folder.' % str(number_renamed_topics)
             messagebox.showinfo(title='Renamed files', message=rename_msg)
 
     def call_mass_edit(self, *args):
@@ -107,7 +107,7 @@ class App(Tk):
             if len(processed_files) > 0:
                 mass_edit_msg = 'Edited shortdescs in files:\n\n' + '\n'.join([f for f in processed_files])
             else:
-                mass_edit_msg = 'Nothing to rename_in_pair automatically.'
+                mass_edit_msg = 'Nothing to rename automatically.'
             messagebox.showinfo(title='Mass edited files', message=mass_edit_msg)
 
     def call_get_problematic_files(self, *args):
@@ -115,7 +115,7 @@ class App(Tk):
             new_window = MissingItemsWindow(self.ditamap)
 
 
-class ImageNamesWindow():
+class ImageNamesWindow:
 
     def __init__(self, ditamap):
         self.image_prefix_var = StringVar()
@@ -130,8 +130,8 @@ class ImageNamesWindow():
                                  text=label_top_text)
         prompt_label_top.grid(row=0, column=0, sticky=NW, **self.padding)
 
-        label_bottom_text = '(Example: \'inkcab\' for a document about the ink cabinet\nwill produce image names like ' \
-                            '\'img_inkcab_***\' and \'scr_inkcab_\'.)'
+        label_bottom_text = '(Example: \'inkcab\' for a document about the ink cabinet\nwill produce image names' \
+                            ' like \'img_inkcab_***\' and \'scr_inkcab_\'.)'
         prompt_label_bottom = Label(self.top, justify=LEFT,
                                     text=label_bottom_text)
         prompt_label_bottom.grid(row=1, column=0, sticky=NW, **self.padding)
@@ -155,7 +155,7 @@ class ImageNamesWindow():
             messagebox.showinfo(title='Mass edit image names', message='Images renamed.')
             self.top.destroy()
 
-@debugmethods
+
 class MissingItemsWindow(Tk):
 
     def __init__(self, ditamap):
@@ -358,7 +358,7 @@ class MissingItemsWindow(Tk):
 
     def show_edit_title(self):
         self.title_field = Entry(self.file_frame, textvariable=self.title_var)
-        self.title_field.grid(row=1, column=1,sticky=EW, **self.padding)
+        self.title_field.grid(row=1, column=1, sticky=EW, **self.padding)
 
         self.title_label = Label(self.file_frame, text='Title:')
         self.title_label.grid(row=1, column=0, sticky=EW)

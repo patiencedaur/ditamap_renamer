@@ -294,6 +294,41 @@ class DocumentObject:
             print('- One of the languages is checked out, and you are no Administrator')
 
 
+class PDFObject(DocumentObject):
+
+    def __init__(self, name: str = None, folder_id: int | str = None, id: str = None):
+        super().__init__(name, folder_id, id)
+        self.type = 'ISHTemplate'
+        if name and folder_id and not id:
+            self.id = self.create()
+
+    def create(self):
+        folder_type = 'ISHTemplate'
+        with open('templates/pdf_template.pdf', 'rb') as template:
+            pbdata = template.read()
+        author = Auth.get_dusername()
+        request: str = Metadata(
+            IshField('ftitle', self.name),
+            IshField('fstatus', 'VSTATUSDRAFT'),
+            IshField('fauthor', author),
+        ).pack
+
+        response = DocumentObject.service.Create(Auth.token, self.folder_id, folder_type, psVersion='new',
+                                                 psLanguage='en-US',
+                                                 psXMLMetadata=request, psEdt='EDTPDF', pbData=pbdata)
+        id = response['psLogicalId']
+        return id
+    
+    def fill_initial_metadata(self):
+        initial_metadata = Metadata(
+            IshField('FHPITOPICTITLE', self.name),
+            IshField('FHPIDISCLOSURELEVEL', '287477763180518087286275037723076'),
+            IshField('FHPIPRODUCT', '18576095'),
+            IshField('FHPIREGION', '205101142445494286415257'),
+        )
+        self.set_metadata(initial_metadata)
+        
+
 class Map(DocumentObject):
 
     def __init__(self, name: str = None, folder_id: str = None, id: str = None):
@@ -319,7 +354,7 @@ class Map(DocumentObject):
             IshField('fauthor', author),
             # IshField('fmastertype', 'Troubleshooting')
         ).pack
-        response = DocumentObject.  service.Create(Auth.token, self.folder_id, folder_type, psVersion='new',
+        response = DocumentObject.service.Create(Auth.token, self.folder_id, folder_type, psVersion='new',
                                                  psLanguage='en-US',
                                                  psXMLMetadata=request, psEdt='EDTXML', pbData=pbdata)
         id = response['psLogicalId']
@@ -427,7 +462,6 @@ class Publication:
         return Unpack.to_metadata(xml)
 
     def set_metadata(self, metadata: Metadata) -> None:
-        print(metadata.pack)
         Publication.service.SetMetadata(Auth.token, self.id, psVersion=1, psXMLMetadata=metadata.pack)
 
     def set_usergroup(self) -> None:
@@ -479,6 +513,7 @@ class Publication:
                                         # psXMLRequiredCurrentMetadata=required_meta,
                                         psOutputFormat='HPI PDF', psLanguageCombination='en-US')
 
+
 class Folder:
     hostname = Constants.HOSTNAME + 'Folder25.asmx?wsdl'
     service = Client(hostname, service_name='Folder25', port_name='Folder25Soap').service
@@ -501,6 +536,7 @@ class Folder:
             new_folder_response = Folder.service.Create(Auth.token, self.parent_id, self.type, self.name,
                                                         plOutNewFolderRef=str(random.randrange(2 ^ 32)))
             self.id = new_folder_response['plOutNewFolderRef']
+            print('Created folder:', self.id, self.name)
         if metadata:
             self.name = self.metadata.dict_form.get('FNAME').get('text')
             self.type = self.metadata.dict_form.get('FDOCUMENTTYPE').get('text')
@@ -550,12 +586,12 @@ class Folder:
             xml = Folder.service.GetSubFoldersByIshFolderRef(Auth.token, plFolderRef=self.id)['psOutXMLFolderList']
             ishfolders: list[tuple[Metadata, str | int]] = Unpack.to_metadata(xml, 'ishfolders')
             return ishfolders
-        if search_mode == 'ishobjects':
+        elif search_mode == 'ishobjects':
             xml = Folder.service.GetContents(Auth.token, plFolderRef=self.id)['psOutXMLObjList']
             ishobjects: list[str] = Unpack.to_metadata(xml, 'ishobjects')
             return ishobjects
-        if not search_mode:
-            if self.get_type == 'None':  # folder with folders
+        elif not search_mode:
+            if self.get_type == 'None' or self.get_type == 'ISHNone':  # folder with folders
                 xml = Folder.service.GetSubFoldersByIshFolderRef(Auth.token, plFolderRef=self.id)['psOutXMLFolderList']
             else:
                 xml = Folder.service.GetContents(Auth.token, plFolderRef=self.id)['psOutXMLObjList']
@@ -567,6 +603,11 @@ class Folder:
         return Unpack.subfolder_ids(xml)
 
     def locate_object_by_name_start(self, name_start: str) -> tuple[str, str]:
+        """
+        Returns an object from an object folder (not a folder with folders).
+        :param name_start: string
+        :return: object name, object guid
+        """
         guids: list[str] = self.get_contents('ishobjects')
 
         def get_obj_name_from_guid(guid: str) -> str:
@@ -625,7 +666,7 @@ class Project:
             self.id = id
             self.folder = Folder(id=self.id)
             self.name = self.get_name()
-        if not name and not id:
+        elif not name and not id:
             part_no = input('Enter part number as in the project title: ')
             self.name, self.id = SearchRepository().by_part_number(part_no)
             self.folder = Folder(id=self.id)
@@ -639,8 +680,8 @@ class Project:
         subfolders: dict[str, Folder] = {}
         for metadata, folder_id in subfolder_data:
             name: str = metadata.dict_form.get('FNAME').get('text')
-            folder_obj: Folder = Folder(id=folder_id, metadata=metadata)
-            if name:  # if folder exists
+            if any(k in name for k in Project.folder_names.keys()):  # if folder with similar name exists
+                folder_obj: Folder = Folder(id=folder_id, metadata=metadata)
                 subfolders[name] = folder_obj
         return subfolders
 
@@ -650,10 +691,12 @@ class Project:
             try:
                 new_folder = Folder(name=folder_name, type=folder_type, parent_id=self.folder.id)
                 self.subfolders[folder_name] = new_folder
+                print(self.subfolders)
                 return self.subfolders
             except exceptions.Fault as e:
-                print('Problem with creating folder \'{}\'. Check in the XMLContent Manager if it already exists'.format(
-                    folder_name))
+                print(
+                    'Problem with creating folder \'{}\'. Check in the Content Manager if it already exists'.format(
+                        folder_name))
                 print(e)
                 sys.exit()
 
@@ -681,7 +724,8 @@ class Project:
             pub = Publication(id=pub_guids[0])
             return pub
         else:
-            print('There should be only one publication. Please check the XMLContent Manager for missing/redundant files.')
+            print('There should be only one publication. ' +
+                  'Please check the XMLContent Manager for missing/redundant files.')
 
     def get_root_map(self) -> Map:
         map_folder: Folder = self.subfolders.get('maps')
@@ -698,16 +742,19 @@ class Project:
         var_folder: Folder = self.subfolders.get('variables')
         var_guids: list[str] = var_folder.get_contents('ishobjects')
         libvar_sources: tuple[str, str] = topic_folder.locate_object_by_name_start('v_')
-        print(libvar_sources)
-        if len(var_guids) == 0 and len(libvar_sources) == 2:
+        try:
             source_name, source_guid = libvar_sources
-            try:
-                var_obj = LibVariable(name=source_name, folder_id=var_folder.id, topic_guid=source_guid)
-                return var_obj
-            except TypeError:
-                print('Library variable data not found in topic folder')
-        else:
-            print('Either library variable already exists or source topic was not found. Check the XMLContent Manager')
+            assert len(var_guids) == 0
+        except TypeError:
+            print('Either library variable already exists or source topic was not found. Check the ontent Manager')
+            source_name, source_guid = None, None
+
+        try:
+            var_obj = LibVariable(name=source_name, folder_id=var_folder.id, topic_guid=source_guid)
+            return var_obj
+        except TypeError:
+            print('Library variable data not found in topic folder')
+
 
     def complete_cheetah_migration(self) -> None:
         for folder_name in Project.folder_names.keys():
@@ -718,9 +765,12 @@ class Project:
         pub.add_map(root_map)
         print('Searching for library variable...')
         libvar: LibVariable = self.migrate_libvar_from_topic()
-        if libvar:
-            print('Found', libvar, 'adding to publication...')
-            pub.add_resource(libvar)
+        try:
+            if libvar.id:
+                print('Found', libvar, 'adding to publication...')
+                pub.add_resource(libvar)
+        except AttributeError:
+            print('Library variable not found, continuing...')
         print('Migration completed.')
 
     def create_folder_structure(self) -> dict[str, Folder]:
@@ -743,15 +793,18 @@ class SearchRepository:
     dfe_ug = (7406751)
 
     def get_location(self) -> Folder:
-        part_type = input('\'press\' or \'dfe\'? ')
+        part_type = self.get_press_or_dfe()
         match part_type:
             case 'press':
                 return self.get_press_series()
             case 'dfe':
                 return Folder(id=7406676)
 
+    def get_press_or_dfe(self):
+        return input('\'press\' or \'dfe\'? ')
+
     def get_press_series(self) -> Folder:
-        series = input('Enter series number or \'common\': ')
+        series = self.get_series_number()
         id = ''
         match series:
             case '3':
@@ -767,7 +820,15 @@ class SearchRepository:
         if series:
             return Folder(id=id)
 
-    def scan_helper(self, part_number: int | str, folder: Folder, depth: int) -> tuple[str, str | int]:
+    def get_series_number(self):
+        return input('Enter series number or \'common\': ')
+
+    def scan_helper(self,
+                    part_number: int | str,
+                    folder: Folder,
+                    depth: int,
+                    max_depth: int = 2)\
+            -> tuple[str, str | int]:
         folder_data = folder.get_subfolder_ids()
         depth += 1
         for metadata, id in folder_data:
@@ -776,44 +837,90 @@ class SearchRepository:
             if part_number in name:
                 return name, id
             else:
-                if depth > 2:
+                if depth > max_depth:
                     continue
-                result = self.scan_helper(part_number, Folder(id=id), depth)
+                result = self.scan_helper(part_number, Folder(id=id), depth, max_depth)
                 if result:
                     return result
 
-    def scan_folder(self, part_number: str | int, folder: Folder, depth: int) ->\
+    def scan_folder(self,
+                    part_number: str | int,
+                    folder: Folder,
+                    depth: int,
+                    max_depth: int = 2) -> \
             tuple[str | None, str | int | None]:
         print('Searching...')
-        result = self.scan_helper(part_number, folder, depth)
+        result = self.scan_helper(part_number, folder, depth, max_depth)
         if result:
-            while True:
-                print('Found', str(result) + '.')
-                yn = input('Is this the project you were looking for? y/n ')
-                if yn == 'y':
-                    return result
-                elif yn == 'n':
-                    print('Aborting.')
-                    exit()
+            print('Found', str(result) + '.')
+            return result
         else:
-            print('Not found')
-            return None, None
+            print('Not found. Try a different scope')
+            exit()
+
 
     def by_part_number(self, part_number: int | str) -> tuple[str | int | None, Folder | None]:
         return self.scan_folder(part_number, self.get_location(), 0)
 
 
+def check_projects_for_titles_and_shortdescs(partno_list: list[str]):
+    from mary_xml import XMLContent
+    warnings = []
+    not_ready = []
+    for part_no in partno_list:
+        something_is_missing = False
+        proj_name, folder_id = SearchRepository().scan_folder(part_number=part_no,
+                                                       folder=Folder(id=Constants.INDIGO_TOP_FOLDER.value),
+                                                       depth=0, max_depth=5)
+        proj = Project(proj_name, folder_id)
+        topic_folder = proj.subfolders.get('topics')
+        if not topic_folder:
+            warnings.append('topics folder does not exist in project ' + proj_name + '- skipping')
+            continue
+        topic_guids: list[str] = topic_folder.get_contents('ishobjects')
+        print(topic_guids)
+        for topic_guid in topic_guids:
+            topic = Topic(id=topic_guid)
+            topic_contents = XMLContent(root=topic.get_decoded_content_as_tree())
+            if (topic_contents.title_missing() or topic_contents.shortdesc_missing()) \
+                    and topic_contents.outputclass != 'frontcover' and topic_contents.outputclass != 'backcover':
+                something_is_missing = True
+                topic_name = topic.get_metadata(Metadata(('ftitle', ''))).dict_form.get('FTITLE').get('text')
+                if topic_contents.title_missing():
+                    report = 'Title missing:\n' + topic_name + '\nin project: ' + proj_name
+                    warnings.append(report)
+                if topic_contents.shortdesc_missing():
+                    report = 'Shortdesc missing:\n' + topic_name + '\nin project: ' + proj_name
+                    warnings.append(report)
+        if something_is_missing:
+            not_ready.append((proj_name, folder_id))
+    if len(not_ready) > 0:
+        print('Projects not ready for Dynamic Delivery:')
+        for p in not_ready:
+            print(p)
+        print()
+        print('------------------------------------')
+        print()
+        print('Problematic topics:')
+        print()
+        for warning in warnings:
+            print(warning)
+            print()
+
+
 if __name__ == '__main__':
-
     project = Project()
-    project.complete_cheetah_migration()
+    if project:
+        project.complete_cheetah_migration()
 
-    # LOVDebug.get_value_tree('username')
+    # check_projects_for_titles_and_shortdescs(['CA394-28940'])
+
+    # LOV.get_value_tree('FHPISUPPRESSTITLEPAGE')
 
     # product = Tag('fhpicustomersupportstories')
     # product.save_possible_values_to_file()
 
-    # pub_to_query = Publication(id='GUID-4406218C-0017-4055-82A0-504CBA4B4C36')
+    # pub_to_query = Publication(id='GUID-34D23F5B-F404-48FE-8EF5-3E41CC70DE2F')
     # print(pub_to_query.get_hpi_pdf_metadata(Metadata(('fhpisecondarycolor', ''))))
     # ditamap = Map(id='GUID-E45F673D-C1FA-4C88-96CA-5A4EABF8169A')
     # decoded_tree = ditamap.get_decoded_content_as_tree()

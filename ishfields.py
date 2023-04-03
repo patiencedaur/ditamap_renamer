@@ -23,7 +23,7 @@ class IshField:
         try:
             assert self.name in IshField.f.keys()
         except AssertionError:
-            print('Disallowed name: ' + self.name + '. Only names defined in IshFields.f are allowed.')
+            print('Disallowed name: ' + self.name + '. Only names defined in Constants.ISHFIELDS are allowed.')
             sys.exit()
 
     def validate_operator(self):

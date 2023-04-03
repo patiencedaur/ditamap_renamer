@@ -13,5 +13,7 @@ def debug(func):
 def debugmethods(cls):
     for k, v in vars(cls).items():
         if callable(v):
+            type(v)
             setattr(cls, k, debug(v))
     return cls
+
