@@ -11,6 +11,8 @@ class Constants(Enum):
     SCITEX_TOP_FOLDER = 7793322
     UNKNOWN = None
 
+    PADDING = {'padx': 10, 'pady': 10}
+
     outputclasses: dict[str, str] = {
         # 1. Document outputclass, indicated as an attribute of the first content tag.
         # Example: <task id=... outputclass="procedure">

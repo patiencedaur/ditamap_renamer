@@ -4,29 +4,38 @@ from tkinter import messagebox
 from tkinter import ttk
 import subprocess
 from local import *
+from rename_flare_images import RenameImageFile
+
+padding = Constants.PADDING.value
 
 
-class MainFrame(ttk.Frame):
-    pass
+class LocalTab(PanedWindow):
+
+    def __init__(self, master) -> None:
+        super().__init__(master, orient=VERTICAL)
+
+        step_one_and_a_half = LocalMapProcessing(self)
+        self.add(step_one_and_a_half, **padding)
+
+        flare_image_renamer = RenameImageFile(self)
+        self.add(flare_image_renamer, **padding)
 
 
-class App(Tk):
+class LocalMapProcessing(ttk.LabelFrame):
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, master) -> None:
+        super().__init__(master, text='Local DITA project processing')
         self.ditamap: LocalMap | None = None
-        self.title('MaryTreat - Cheetah-to-DITA Conversion Step No. 1.5')
         self.ditamap_var = StringVar()  # something used by Tkinter, here acts as a buffer for ditamap path
         self.ditamap_var.trace('w', self.turn_on_buttons)
-        self.padding = {'padx': 5, 'pady': 5}
+        self.padding = Constants.PADDING.value
         self.no_images = True
 
         button_file = Button(self, text='Select map...', command=self.get_ditamap_name)
         button_file.grid(row=0, column=0, sticky=NW, **self.padding)
 
-        self.target_file = Entry(self, textvariable=self.ditamap_var, width=60, bg='white', relief=SUNKEN, bd=4,
-                                 justify=LEFT)
-        self.target_file.grid(row=0, column=1, sticky=NW, **self.padding, columnspan=2)
+        self.target_file = Entry(self, textvariable=self.ditamap_var, width=60, bd=4, justify=LEFT)
+        self.target_file.grid(row=0, column=1, sticky=NSEW, **self.padding, columnspan=2)
 
         self.button_rename = Button(self,
                                     text='Rename folder items',
@@ -51,13 +60,6 @@ class App(Tk):
                                               command=self.create_image_prefix_prompt_window,
                                               state=DISABLED)
         self.button_edit_image_names.grid(row=2, column=2, sticky=EW, **self.padding)
-
-        button_exit = Button(self, text='Exit', command=self.exit)
-        button_exit.grid(row=2, column=0, sticky=SW, **self.padding)
-
-    def exit(self):
-        self.destroy()
-        exit()
 
     def get_ditamap_name(self):
         """
