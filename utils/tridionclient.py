@@ -8,8 +8,8 @@ from lxml import etree
 from requests import Session
 from zeep import Client, Transport, exceptions
 
-from ishfields import IshField
-from constants import Constants
+from utils.ishfields import IshField
+from utils.constants import Constants
 
 """
 A Python client for SDL Tridion Docs. Created for HP Indigo by Dia Daur.
@@ -304,7 +304,7 @@ class PDFObject(DocumentObject):
 
     def create(self):
         folder_type = 'ISHTemplate'
-        with open('templates/pdf_template.pdf', 'rb') as template:
+        with open('../templates/pdf_template.pdf', 'rb') as template:
             pbdata = template.read()
         author = Auth.get_dusername()
         request: str = Metadata(
@@ -864,7 +864,7 @@ class SearchRepository:
 
 
 def check_projects_for_titles_and_shortdescs(partno_list: list[str]):
-    from mary_xml import XMLContent
+    from utils.mary_xml import XMLContent
     warnings = []
     not_ready = []
     for part_no in partno_list:

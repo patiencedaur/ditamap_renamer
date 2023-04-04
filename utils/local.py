@@ -1,9 +1,9 @@
 from copy import deepcopy
 import os
+from utils.mary_xml import XMLContent, TextElement
 from lxml import etree
-from mary_xml import XMLContent, TextElement
 import re
-from constants import Constants
+from utils.constants import Constants
 from shutil import copy2
 
 prefixes: dict[str, str] = {
@@ -324,7 +324,7 @@ class LocalMap(LocalProjectFile):
                 topic.write()
 
     def create_root_concept(self, title='How-to Guide'):
-        template_path = 'templates/root_concept.dita'
+        template_path = '../templates/root_concept.dita'
         concept_filename = self.basename + '.dita'
         concept_path = os.path.join(self.folder, concept_filename)
         copy2(template_path, concept_path)

@@ -1,6 +1,6 @@
 from tkinter import *
 from tkinter import Entry
-from constants import Constants
+from utils.constants import Constants
 
 padding = Constants.PADDING.value
 

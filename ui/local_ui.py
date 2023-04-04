@@ -3,8 +3,8 @@ from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import ttk
 import subprocess
-from local import *
-from rename_flare_images import RenameImageFile
+from utils.local import *
+from utils.rename_flare_images import RenameImageFile
 
 padding = Constants.PADDING.value
 

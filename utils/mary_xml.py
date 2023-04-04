@@ -1,7 +1,7 @@
 import copy
 import re
 from lxml import etree
-from constants import Constants
+from utils.constants import Constants
 
 
 def TextElement(tag: str, text: str, *args, **kwargs) -> etree.Element:
