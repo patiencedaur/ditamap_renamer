@@ -1,6 +1,6 @@
 from lxml import etree
-import sys
 from constants import Constants
+from utils.mary_debug import logger
 
 
 class IshField:
@@ -23,8 +23,7 @@ class IshField:
         try:
             assert self.name in IshField.f.keys()
         except AssertionError:
-            print('Disallowed name: ' + self.name + '. Only names defined in Constants.ISHFIELDS are allowed.')
-            sys.exit()
+            logger.critical('Disallowed name: ' + self.name + '. Only names defined in Constants.ISHFIELDS are allowed.')
 
     def validate_operator(self):
         try:
@@ -32,8 +31,7 @@ class IshField:
                                      'greaterthan', 'lessthan', 'greaterthanorequal',
                                      'lessthanorequal', 'between', 'empty', 'notempty']
         except AssertionError:
-            print('Disallowed operator: ' + self.operator + '. Only names defined in IshFields.f are allowed.')
-            sys.exit()
+            logger.critical('Disallowed operator: ' + self.operator + '. Only names defined in IshFields.f are allowed.')
 
     def __repr__(self) -> str:
         return self.dict_form.__repr__()

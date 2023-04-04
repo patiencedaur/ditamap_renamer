@@ -19,9 +19,9 @@ def show_table_entries(document):
     for table in document.tables:
         for row in table.rows:
             for cell in row.cells:
-                print(cell)
+                logger.info(cell)
                 for paragraph in cell.paragraphs:
-                    print(paragraph.text)
+                    logger.info(paragraph.text)
 
 
 def backup_doc(path):

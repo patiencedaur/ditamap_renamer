@@ -1,3 +1,4 @@
+from utils.mary_debug import logger
 import copy
 import re
 from lxml import etree
@@ -106,15 +107,15 @@ class XMLContent:
         for link in self.local_links:
             link_href = link.attrib.get('href')
             if old_name in link_href:
-                print("'" + self.title_tag.text + "'", 'has old link to', new_name, '(%s)' % link_href)
+                logger.info("'" + self.title_tag.text + "'", 'has old link to', new_name, '(%s)' % link_href)
                 new_name = link_href.replace(old_name, new_name)
-                print('Updated link href:', new_name, '\n')
+                logger.info('Updated link href:', new_name, '\n')
                 link.set('href', new_name)
 
     def fattribute(self, attr_name, mode, new_value=None) -> str | None:  # for ishfiles only
         ishfields = self.root.find('ishfields')
         if ishfields is None:
-            print(self, 'is not an ISH file. Unable to get attribute', attr_name)
+            logger.error(self, 'is not an ISH file. Unable to get attribute', attr_name)
             return
         for ishfield in ishfields.findall('ishfield'):
             if ishfield.attrib.get('name') == attr_name:
@@ -123,9 +124,9 @@ class XMLContent:
                 elif mode == 'set' and new_value:
                     ishfield.text = new_value
                 else:
-                    print('Usage: content.fattribute(attr_name, mode=\'get\'/\'set\',',
-                          'new_value=\'myvalue\') #  set value if mode=\'set\'.',
-                          'This method can set fname or fmoduletype')
+                    logger.error('Usage: content.fattribute(attr_name, mode=\'get\'/\'set\',',
+                                  'new_value=\'myvalue\') #  set value if mode=\'set\'.',
+                                  'This method can set fname or fmoduletype')
 
     def process_docdetails(self):
         # identify docdetails topic
@@ -240,7 +241,7 @@ class XMLContent:
         p_tags = body.findall('p')
         future_title = p_tags[0]
         future_shortdesc = p_tags[1].find('b')
-        print(future_title.text, future_shortdesc.text)
+        logger.debug(future_title.text, future_shortdesc.text)
         self.set_title(future_title.text)
         self.set_shortdesc(future_shortdesc.text)
         for i in range(2):
@@ -270,7 +271,7 @@ class XMLContent:
             href_and_ext = href.split('.')
             if href_and_ext[-1] != 'png':
                 href_png = '.'.join('.'.join((href_and_ext[:-1], 'png')))
-                print(href_png)
+                logger.debug(href_png)
                 # image.set('href', href_png)
     # def wrap_element(self, element: etree.Element, wrapper_tag: str):
     #     wrapper = copy.deepcopy(element)
@@ -303,10 +304,10 @@ class XMLContent:
                 continue
             if 'NOTE:' in el.text:
                 el.text.replace('NOTE:', '')
+                logger.debug('Found a note!', self.tree.getpath(el))
                 if el.tag == 'p':
                     note_content = copy.deepcopy(el)
                     note = el
-                # print('Found a note!', self.tree.getpath(el))
                 else:
                     nearest_p = yield etree.AncestorsIterator(el, 'p')
                     note_content = copy.deepcopy(nearest_p)
@@ -314,4 +315,4 @@ class XMLContent:
                 note.tag = 'note'
                 note.clear()
                 note.append(note_content)
-                print(self.tree.getpath(note_content))
+                logger.debug(self.tree.getpath(note_content))

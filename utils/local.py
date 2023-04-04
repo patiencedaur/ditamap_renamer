@@ -5,6 +5,7 @@ from lxml import etree
 import re
 from utils.constants import Constants
 from shutil import copy2
+from utils.mary_debug import logger
 
 prefixes: dict[str, str] = {
     # A prefix is an identifying letter that gets prepended to the filename, according to the style guide.
@@ -20,23 +21,22 @@ doctypes: list[str] = ['concept', 'task', 'reference']
 
 
 def file_rename(old_path: str, new_path: str) -> None:
-    print(old_path, new_path)
     if not os.path.exists(old_path):
-        print('Error, no file to rename_path:', old_path)
+        logger.warning('No file to rename:', old_path)
         return
     if os.path.exists(new_path):
-        print('New path already exists:', new_path)
+        logger.warning('New path already exists:', new_path)
         return
     if old_path == new_path:
-        print('Error, old path equal to new path:', old_path)
+        logger.error('Old path equal to new path:', old_path)
     else:
         os.rename(old_path, new_path)
-        print('renamed', old_path, 'to', new_path)
+        logger.info('renamed', old_path, 'to', new_path)
 
 
 def file_delete(path: str) -> None:
     if not os.path.exists(path):
-        print('Error, no file to delete:', path)
+        logger.error('No file to delete:', path)
         return
     os.remove(path)
 
@@ -88,7 +88,7 @@ class LocalProjectFile:
 
     def get_xml_file_header(self) -> str | None:
         if not self.path:
-            print('Path', self.path, 'does not exist')
+            logger.error('Path', self.path, 'does not exist')
             return
         with open(self.path, 'r', encoding='utf-8') as f:
             declaration = r'(<\?xml version="1.0" encoding="UTF-8"\?>\n)(<!DOCTYPE.*?>\n)?'
@@ -101,7 +101,7 @@ class LocalProjectFile:
                 header = ''.join(found_declaration[0])
                 return header
             else:
-                print('No XML declaration in header:', self)
+                logger.debug('No XML declaration in header: ' + str(self))
                 return
 
     def write(self, *args, **kwargs) -> None:
@@ -161,14 +161,13 @@ class LocalMap(LocalProjectFile):
                 content_types[ext].append(fl)
         if '3sish' in content_types.keys():
             if len(content_types['dita']) != len(content_types['3sish']):
-                print('Some DITA topics are missing their ISH files, or vice versa.',
+                logger.critical('Some DITA topics are missing their ISH files, or vice versa.',
                       'Please check the contents of the folder:', self.folder)
-                exit()
             else:
-                print('This project is derived from a Cheetah file')
+                logger.info('This project is derived from a Cheetah file')
                 return 'cheetah'
         else:
-            print('This project is derived from a Word file')
+            logger.info('This project is derived from a Word file')
             return 'word'
 
     def get_images(self) -> set['Image']:
@@ -185,7 +184,7 @@ class LocalMap(LocalProjectFile):
     def get_topic_from_topicref(self, topicref: etree.Element):
         topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
         if not os.path.exists(topic_path):
-            print('Cannot create LocalProjectFile from path %s. Aborting.' % topic_path)
+            logger.critical('Cannot create LocalProjectFile from path %s. Aborting.' % topic_path)
         topic_content = XMLContent(etree.parse(topic_path).getroot())
 
         oc: str = topic_content.root.attrib.get('outputclass')
@@ -207,7 +206,7 @@ class LocalMap(LocalProjectFile):
         try:
             topic.cast()
         except:
-            print('Cannot cast', topic, 'to', topic.__class__)
+            logger.warning('Cannot cast', topic, 'to', topic.__class__)
 
         if self.source == 'cheetah':
             topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
@@ -218,7 +217,7 @@ class LocalMap(LocalProjectFile):
     def get_topics(self) -> list['LocalTopic']:
         topics = []
         for topicref in self.content.root.iter('topicref'):
-            print('Initializing', topicref.attrib.get('href'), '...')
+            logger.info('Initializing ' + topicref.attrib.get('href') + '...')
             topic = self.get_topic_from_topicref(topicref)
             topics.append(topic)
         return topics
@@ -243,14 +242,14 @@ class LocalMap(LocalProjectFile):
                 num_rep = topic_title_repetitions[title_text]
                 topic.update_name(num_rep)
                 renamed_files_counter += 1
-        print('Repeated topic titles:', {k: v for k, v in topic_title_repetitions.items() if v > 0})
+        logger.debug('Repeated topic titles:', {k: v for k, v in topic_title_repetitions.items() if v > 0})
         return renamed_files_counter
 
     def update_topicref(self, old, new):
         for topicref in self.content.root.iter('topicref'):
             if topicref.attrib.get('href') == old:
                 if old == new:
-                    print('Skipped in map: %s, nothing to rename_path' % old)
+                    logger.info('Skipped in map: %s, nothing to rename' % old)
                     continue
                 topicref.set('href', new)
         self.write()
@@ -312,14 +311,14 @@ class LocalMap(LocalProjectFile):
             current_path: str = os.path.join(self.image_folder, img.href)
             new_path: str = os.path.join(self.image_folder, new_name)
             if not os.path.exists(current_path) or os.path.exists(new_path):
-                print('Error, current path does not exist or new path exists')
+                logger.error('Current path does not exist or new path exists')
             file_rename(current_path, new_path)
             # rename_path hrefs in topics
             for topic in topics:
                 for fig in topic.content.root.iter('fig'):
                     for img_tag in fig.iter('image'):
                         if img_tag.attrib.get('href') == img.href:
-                            print('Renaming', img.href, 'to', new_name)
+                            logger.info('Renaming', img.href, 'to', new_name)
                             img_tag.set('href', new_name)
                 topic.write()
 
@@ -453,7 +452,7 @@ class LocalTopic(LocalProjectFile):
         self.name = new_name + self.ext
         self.path = os.path.join(self.folder, self.name)
         if os.path.exists(self.path):
-            print('New path already exists:', self.path)
+            logger.warning('New path already exists:', self.path)
         else:
             file_rename(old_path, self.path)
 
@@ -467,13 +466,13 @@ class LocalTopic(LocalProjectFile):
 
         old_topic = LocalTopic(self.path, self.ditamap)
         if self.content.title_missing():
-            print('Skipped: %s, nothing to rename_path (title missing)' % old_topic.name)
+            logger.info('Skipped: %s, nothing to rename (title missing)' % old_topic.name)
             return
 
-        print('Updating name:', old_topic)
+        logger.info('Updating name:', old_topic)
         new_name = self.create_new_name(num_rep)
         if old_topic.name == new_name:
-            print('Skipped: %s, already renamed' % old_topic.name)
+            logger.info('Skipped: %s, already renamed' % old_topic.name)
             return
 
         self.name = new_name
@@ -484,7 +483,6 @@ class LocalTopic(LocalProjectFile):
         self.ditamap.update_topicref(old_topic.name, self.name)
         if self.ish is not None:
             self.ish.rename_with_path(self.ish.path, new_name)
-        print()
 
     def assign_type_from_prefix(self):
         prefix = self.name[0:2]
@@ -593,7 +591,7 @@ class LocalISHFile(LocalProjectFile):
 
     def check_ishobject(self):
         if self.content.root.tag != 'ishobject':
-            print('Malformed ISH file, no ishobject tag:', self.path)
+            logger.critical('Malformed ISH file, no ishobject tag:', self.path)
 
     def rename_with_path(self, old_path, new_name):
         self.content.fattribute('FTITLE', 'set', new_name)

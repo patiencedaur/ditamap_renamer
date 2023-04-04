@@ -1,6 +1,7 @@
 from tkinter import *
 from tkinter import Entry
 from utils.constants import Constants
+from utils.mary_debug import logger
 
 padding = Constants.PADDING.value
 
@@ -34,7 +35,7 @@ class SelectSeries(LabelFrame):
         self.series.set('common')
 
     def get_series(self):
-        print(self.series.get())
+        logger.debug(self.series.get())
         return self.series.get()
 
 

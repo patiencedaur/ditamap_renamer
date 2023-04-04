@@ -2,7 +2,7 @@ import base64
 import datetime
 import random
 import re
-import sys
+from utils.mary_debug import logger
 
 from lxml import etree
 from requests import Session
@@ -37,8 +37,7 @@ class Metadata:
             elif isinstance(arg, tuple):
                 self.ishfields.append(IshField(arg[0], arg[1]))
             else:
-                print(self.__init__.__doc__)
-                sys.exit()
+                logger.critical(self.__init__.__doc__)
 
     def __repr__(self) -> str:
         meta_repr = 'Metadata['
@@ -189,7 +188,7 @@ class Auth:
     # client = Client(hostname + 'Application25.asmx?wsdl', wsse=UsernameToken(username, password))
     response = auth.Login('InfoShareAuthor', Constants.USERNAME, Constants.PASSWORD)
     token = response['psOutAuthContext']
-    print('Login token:', token)
+    logger.info('Login token:', token)
 
     @staticmethod
     def get_dusername():
@@ -217,7 +216,7 @@ class DocumentObject:
     def set_metadata(self, metadata: Metadata) -> None:
         DocumentObject.service.SetMetadata(Auth.token, self.id, psVersion=1, psLanguage='en-US',
                                            psXMLMetadata=metadata.pack)
-        print('Set metadata:', metadata, 'for object:', self)
+        logger.info('Set metadata:', metadata, 'for object:', self)
 
     def get_metadata(self, metadata: Metadata) -> Metadata:
         request: str = metadata.pack
@@ -231,7 +230,7 @@ class DocumentObject:
         return folder_id
 
     def set_metadata_for_dynamic_delivery(self, product: int | str = None, css: int | str = None):
-        print('Setting metadata:', locals(), 'for', self)
+        logger.info('Setting metadata:', locals(), 'for', self)
         if product:
             set_product: Metadata = Metadata(('fhpiproduct', product))
             self.set_metadata(set_product)
@@ -244,7 +243,7 @@ class DocumentObject:
         set_region: Metadata = Metadata(('fhpiregion', worldwide))
         self.set_metadata(set_region)
 
-        print('Filled mandatory metadata for', self)
+        logger.info('Filled mandatory metadata for', self)
 
     def get_current_dynamic_delivery_metadata(self) -> tuple[str | int, str | int, str | int]:
         mandatory_metadata: Metadata = Metadata(('fhpiproduct', ''), ('fhpicustomersupportstories', ''),
@@ -286,12 +285,12 @@ class DocumentObject:
         try:
             DocumentObject.service.Delete(Auth.token, psLogicalId=self.id)
         except exceptions.Fault:
-            print('Failed to delete object. Possible reasons:')
-            print('- Object is referenced by another object')
-            print('- Object is a root map')
-            print('- One of the languages is used in a released publication output')
-            print('- One of the languages is released, and you are no Administrator')
-            print('- One of the languages is checked out, and you are no Administrator')
+            logger.error('Failed to delete object. Possible reasons:\n' +
+                          '- Object is referenced by another object\n' +
+                          '- Object is a root map\n' +
+                          '- One of the languages is used in a released publication output\n' +
+                          '- One of the languages is released, and you are no Administrator\n' +
+                          '- One of the languages is checked out, and you are no Administrator')
 
 
 class PDFObject(DocumentObject):
@@ -318,7 +317,7 @@ class PDFObject(DocumentObject):
                                                  psXMLMetadata=request, psEdt='EDTPDF', pbData=pbdata)
         id = response['psLogicalId']
         return id
-    
+
     def fill_initial_metadata(self):
         initial_metadata = Metadata(
             IshField('FHPITOPICTITLE', self.name),
@@ -327,7 +326,7 @@ class PDFObject(DocumentObject):
             IshField('FHPIREGION', '205101142445494286415257'),
         )
         self.set_metadata(initial_metadata)
-        
+
 
 class Map(DocumentObject):
 
@@ -476,8 +475,8 @@ class Publication:
             )
             self.set_metadata(meta)
         except AssertionError:
-            print('Error: Use a disclosure level specified in the values of the' +
-                  'Publication.disclosure_levels dictionary.')
+            logger.error('Use a disclosure level specified in the values of the' +
+                          'Publication.disclosure_levels dictionary.')
 
     def add_map(self, map_object: Map) -> None:
         meta = Metadata(
@@ -536,7 +535,7 @@ class Folder:
             new_folder_response = Folder.service.Create(Auth.token, self.parent_id, self.type, self.name,
                                                         plOutNewFolderRef=str(random.randrange(2 ^ 32)))
             self.id = new_folder_response['plOutNewFolderRef']
-            print('Created folder:', self.id, self.name)
+            logger.debug('Created folder:', self.id, self.name)
         if metadata:
             self.name = self.metadata.dict_form.get('FNAME').get('text')
             self.type = self.metadata.dict_form.get('FDOCUMENTTYPE').get('text')
@@ -554,7 +553,7 @@ class Folder:
         """
         :return: Metadata object
         """
-        print('Getting metadata...')
+        logger.debug('Getting metadata...')
         meta: str = Metadata(('fname', ''), ('fishfolderpath', ''), ('fdocumenttype', '')).pack
         xml = Folder.service.GetMetaDataByIshFolderRef(Auth.token, plFolderRef=self.id,
                                                        psXMLRequestedMetaData=meta)['psOutXMLFolderList']
@@ -635,16 +634,14 @@ class Folder:
             pub.set_disclosure_level(disc_level)
             return pub
         except exceptions.Fault as e:
-            print('Problem with the publication. Reason:')
-            print(e)
-            exit()
+            logger.critical('Problem with the publication. Reason: ' + e)
 
     def mass_create_subfolders(self, subfolder_name_list: list[str], subfolder_type) -> None:
         for subfolder_name in subfolder_name_list:
             try:
                 Folder(name=subfolder_name, parent_id=self.id, type=subfolder_type)
             except exceptions.Fault as e:
-                print('Subfolder ', subfolder_name, 'not created. Reason:', e)
+                logger.error('Subfolder ' + subfolder_name + ' not created. Reason: ' + e)
 
     def tag_all(self, **kwargs):
         guids: list[str] = self.get_contents('ishobjects')
@@ -661,7 +658,7 @@ class Project:
                     'variables': ('ISHLibrary', 'Library topic')}
 
     def __init__(self, name: str = None, id: str | int = None):
-        print('Creating project:', locals())
+        logger.debug('Creating project:', locals())
         if id:
             self.id = id
             self.folder = Folder(id=self.id)
@@ -691,14 +688,11 @@ class Project:
             try:
                 new_folder = Folder(name=folder_name, type=folder_type, parent_id=self.folder.id)
                 self.subfolders[folder_name] = new_folder
-                print(self.subfolders)
+                logger.debug(self.subfolders)
                 return self.subfolders
             except exceptions.Fault as e:
-                print(
-                    'Problem with creating folder \'{}\'. Check in the Content Manager if it already exists'.format(
-                        folder_name))
-                print(e)
-                sys.exit()
+                logger.critical('Problem with creating folder ' + folder_name +
+                                 '. Check in the Content Manager if it already exists\n' + str(e))
 
     def create_publication(self) -> Publication:
         pub_folder: Folder = self.subfolders.get('publications')
@@ -708,14 +702,15 @@ class Project:
             try:
                 pub: Publication = pub_folder.add_publication(self.name, disclos_level)
             except exceptions.Fault:
-                print('Problem with creating publication. Check in the XMLContent Manager if it already exists')
-                exit()
+                logger.critical('Problem with creating publication. ' +
+                                 'Check in the XMLContent Manager if it already exists')
+
         elif len(pub_guids) == 1:
             pub = Publication(id=pub_guids[0])
+            return pub
         else:
-            print('Too many publications in folder. Please delete the unneeded publications in the XMLContent Manager')
-            sys.exit()
-        return pub
+            logger.critical('Too many publications in folder. ' +
+                             'Please delete the unneeded publications in the XMLContent Manager')
 
     def get_publication(self) -> Publication | None:
         pub_folder: Folder = self.subfolders.get('publications')
@@ -724,8 +719,8 @@ class Project:
             pub = Publication(id=pub_guids[0])
             return pub
         else:
-            print('There should be only one publication. ' +
-                  'Please check the XMLContent Manager for missing/redundant files.')
+            logger.error('There should be only one publication. ' +
+                          'Please check the XMLContent Manager for missing/redundant files.')
 
     def get_root_map(self) -> Map:
         map_folder: Folder = self.subfolders.get('maps')
@@ -746,32 +741,32 @@ class Project:
             source_name, source_guid = libvar_sources
             assert len(var_guids) == 0
         except TypeError:
-            print('Either library variable already exists or source topic was not found. Check the ontent Manager')
+            logger.error('Either library variable already exists or source topic was not found. ' +
+                          'Check the Content Manager')
             source_name, source_guid = None, None
 
         try:
             var_obj = LibVariable(name=source_name, folder_id=var_folder.id, topic_guid=source_guid)
             return var_obj
         except TypeError:
-            print('Library variable data not found in topic folder')
-
+            logger.warning('Library variable data not found in topic folder')
 
     def complete_cheetah_migration(self) -> None:
         for folder_name in Project.folder_names.keys():
             self.create_subfolder(folder_name)
         pub: Publication = self.create_publication()
         root_map: Map = self.get_root_map()
-        print('Root map:', root_map, 'adding to publication...')
+        logger.info('Root map:', root_map, 'adding to publication...')
         pub.add_map(root_map)
-        print('Searching for library variable...')
+        logger.info('Searching for library variable...')
         libvar: LibVariable = self.migrate_libvar_from_topic()
         try:
             if libvar.id:
-                print('Found', libvar, 'adding to publication...')
+                logger.info('Found', libvar, 'adding to publication...')
                 pub.add_resource(libvar)
         except AttributeError:
-            print('Library variable not found, continuing...')
-        print('Migration completed.')
+            logger.info('Library variable not found, continuing...')
+        logger.info('Migration completed.')
 
     def create_folder_structure(self) -> dict[str, Folder]:
         for folder_name in Project.folder_names.keys():
@@ -780,17 +775,6 @@ class Project:
 
 
 class SearchRepository:
-    htg = (7406745, 7308656)
-    pim = (7406774)
-    service_docs = (7406746, 7406775)
-    site_prep = (7406750, 7406776)
-    ug = (7406751, 7406779)
-
-    dfe_inst = (7406744)
-    dfe_htg = (7406745)
-    dfe_service_docs = (7406746)
-    dfe_site_prep = (7406750)
-    dfe_ug = (7406751)
 
     def get_location(self) -> Folder:
         part_type = self.get_press_or_dfe()
@@ -827,13 +811,13 @@ class SearchRepository:
                     part_number: int | str,
                     folder: Folder,
                     depth: int,
-                    max_depth: int = 2)\
+                    max_depth: int = 2) \
             -> tuple[str, str | int]:
         folder_data = folder.get_subfolder_ids()
         depth += 1
         for metadata, id in folder_data:
             name = metadata.dict_form.get('FNAME').get('text')
-            print('Searching in', name, '(' + id + ')')
+            logger.info('Searching in', name, '(' + id + ')')
             if part_number in name:
                 return name, id
             else:
@@ -849,15 +833,13 @@ class SearchRepository:
                     depth: int,
                     max_depth: int = 2) -> \
             tuple[str | None, str | int | None]:
-        print('Searching...')
+        logger.info('Searching...')
         result = self.scan_helper(part_number, folder, depth, max_depth)
         if result:
-            print('Found', str(result) + '.')
+            logger.info('Found', str(result) + '.')
             return result
         else:
-            print('Not found. Try a different scope')
-            exit()
-
+            logger.info('Not found. Try a different scope')
 
     def by_part_number(self, part_number: int | str) -> tuple[str | int | None, Folder | None]:
         return self.scan_folder(part_number, self.get_location(), 0)
@@ -870,15 +852,15 @@ def check_projects_for_titles_and_shortdescs(partno_list: list[str]):
     for part_no in partno_list:
         something_is_missing = False
         proj_name, folder_id = SearchRepository().scan_folder(part_number=part_no,
-                                                       folder=Folder(id=Constants.INDIGO_TOP_FOLDER.value),
-                                                       depth=0, max_depth=5)
+                                                              folder=Folder(id=Constants.INDIGO_TOP_FOLDER.value),
+                                                              depth=0, max_depth=5)
         proj = Project(proj_name, folder_id)
         topic_folder = proj.subfolders.get('topics')
         if not topic_folder:
             warnings.append('topics folder does not exist in project ' + proj_name + '- skipping')
             continue
         topic_guids: list[str] = topic_folder.get_contents('ishobjects')
-        print(topic_guids)
+        logger.debug(topic_guids)
         for topic_guid in topic_guids:
             topic = Topic(id=topic_guid)
             topic_contents = XMLContent(root=topic.get_decoded_content_as_tree())
@@ -895,17 +877,13 @@ def check_projects_for_titles_and_shortdescs(partno_list: list[str]):
         if something_is_missing:
             not_ready.append((proj_name, folder_id))
     if len(not_ready) > 0:
-        print('Projects not ready for Dynamic Delivery:')
+        logger.info('Projects not ready for Dynamic Delivery:')
         for p in not_ready:
-            print(p)
-        print()
-        print('------------------------------------')
-        print()
-        print('Problematic topics:')
-        print()
+            logger.info(p)
+        logger.info('\n------------------------------------\n')
+        logger.info('Problematic topics:\n')
         for warning in warnings:
-            print(warning)
-            print()
+            logger.info(warning + '\n')
 
 
 if __name__ == '__main__':
@@ -924,5 +902,3 @@ if __name__ == '__main__':
     # print(pub_to_query.get_hpi_pdf_metadata(Metadata(('fhpisecondarycolor', ''))))
     # ditamap = Map(id='GUID-E45F673D-C1FA-4C88-96CA-5A4EABF8169A')
     # decoded_tree = ditamap.get_decoded_content_as_tree()
-    #
-    # from local_transform import *

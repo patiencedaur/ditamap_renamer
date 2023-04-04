@@ -3,6 +3,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import ttk
 import subprocess
+from utils.mary_debug import logger
 from utils.local import *
 from utils.rename_flare_images import RenameImageFile
 
@@ -68,9 +69,9 @@ class LocalMapProcessing(ttk.LabelFrame):
         file = filedialog.askopenfilename(filetypes=[('DITA maps', '.ditamap')])
         if file:
             self.ditamap_var.set(os.path.abspath(file))
-            print('var:', self.ditamap_var.get())
+            logger.debug('var: ' + self.ditamap_var.get())
             self.ditamap = LocalMap(self.ditamap_var.get())
-            print(self.ditamap.image_folder)
+            logger.debug(self.ditamap.image_folder)
             if len(self.ditamap.images) > 0:
                 self.no_images = False
             self.turn_on_buttons()
