@@ -75,8 +75,7 @@ doc_folder = r'C:\hp_cheetahr5\TS5ES-00017 - Buckling Assembly Service'
 dita_project_folder = os.path.join(doc_folder, 'output')
 
 ditamap = get_ditamap(dita_project_folder)
-for t in ditamap.topics:
-    t.content.images_to_png()
+
 
 # Convert with Oxygen Batch Converter using Oxygen 25.
 # Create root concept.
@@ -91,6 +90,6 @@ for t in ditamap.topics:
 # 7. Add map metadata, "outputclass=body", "outputclass=appendixes" etc...
 #
 # Think about it:
-# cast to topic types
 # rewrite marytreat ui so that it does the same to docx-derived maps
+# generate ISH files so that topic/map types don't get lost on the way to the server
 # Desired result: feed this to MaryTreat and be happy, then feed this to Content Manager

@@ -182,7 +182,8 @@ class XMLContent:
         self.convert_lists_to_steps()
 
     def convert_lists_to_steps(self):
-        # get all p's that look like list items, that is:
+        # if there are no ol's,
+        # then get all p's that look like list items, that is:
         # starts with a number followed by a dot
         ols = self.root.findall('ol')
         if len(ols) > 0:
@@ -192,6 +193,9 @@ class XMLContent:
                     self.convert_tag_to_step(li)
         else:  # process p's instead of ordered lists
             for p in filter(lambda x: self.is_list_item(x), self.root.iter('p')):
+                # remove the numbers at the start
+                numeration = re.search('^\d+\. ', p.text).group(0)
+                p.text.replace(numeration, '')
                 self.convert_tag_to_step(p)
             self.wrap_steps()
 
@@ -202,7 +206,7 @@ class XMLContent:
         tag.insert(0, cmd)
 
     def is_list_item(self, p):
-        if re.search('^\d+\.', p.text):
+        if re.search('^\d+\. ', p.text):
             return True
         return False
 
@@ -286,8 +290,8 @@ class XMLContent:
             'collection-type': 'sequence',
             'outputclass': 'appendices'
         })
-        self.root.insert(4, body_group)
-        self.root.insert(-3, appendix_group)
+        self.root.insert(2, body_group)
+        self.root.insert(-2, appendix_group)
 
     def process_notes(self):
         for el in self.root.iter():
@@ -311,6 +315,3 @@ class XMLContent:
                 note.clear()
                 note.append(note_content)
                 print(self.tree.getpath(note_content))
-
-
-                # find the nearest p and wrap it in a note
