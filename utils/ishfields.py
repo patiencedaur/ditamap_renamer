@@ -1,5 +1,5 @@
 from lxml import etree
-from constants import Constants
+from utils.constants import Constants
 from utils.mary_debug import logger
 
 

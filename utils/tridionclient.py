@@ -286,11 +286,11 @@ class DocumentObject:
             DocumentObject.service.Delete(Auth.token, psLogicalId=self.id)
         except exceptions.Fault:
             logger.error('Failed to delete object. Possible reasons:\n' +
-                          '- Object is referenced by another object\n' +
-                          '- Object is a root map\n' +
-                          '- One of the languages is used in a released publication output\n' +
-                          '- One of the languages is released, and you are no Administrator\n' +
-                          '- One of the languages is checked out, and you are no Administrator')
+                         '- Object is referenced by another object\n' +
+                         '- Object is a root map\n' +
+                         '- One of the languages is used in a released publication output\n' +
+                         '- One of the languages is released, and you are no Administrator\n' +
+                         '- One of the languages is checked out, and you are no Administrator')
 
 
 class PDFObject(DocumentObject):
@@ -476,7 +476,7 @@ class Publication:
             self.set_metadata(meta)
         except AssertionError:
             logger.error('Use a disclosure level specified in the values of the' +
-                          'Publication.disclosure_levels dictionary.')
+                         'Publication.disclosure_levels dictionary.')
 
     def add_map(self, map_object: Map) -> None:
         meta = Metadata(
@@ -634,14 +634,14 @@ class Folder:
             pub.set_disclosure_level(disc_level)
             return pub
         except exceptions.Fault as e:
-            logger.critical('Problem with the publication. Reason: ' + e)
+            logger.critical('Problem with the publication. Reason: ' + str(e))
 
     def mass_create_subfolders(self, subfolder_name_list: list[str], subfolder_type) -> None:
         for subfolder_name in subfolder_name_list:
             try:
                 Folder(name=subfolder_name, parent_id=self.id, type=subfolder_type)
             except exceptions.Fault as e:
-                logger.error('Subfolder ' + subfolder_name + ' not created. Reason: ' + e)
+                logger.error('Subfolder ' + subfolder_name + ' not created. Reason: ' + str(e))
 
     def tag_all(self, **kwargs):
         guids: list[str] = self.get_contents('ishobjects')
@@ -659,18 +659,16 @@ class Project:
 
     def __init__(self, name: str = None, id: str | int = None):
         logger.debug('Creating project:', locals())
-        if id:
-            self.id = id
-            self.folder = Folder(id=self.id)
-            self.name = self.get_name()
-        elif not name and not id:
-            part_no = input('Enter part number as in the project title: ')
-            self.name, self.id = SearchRepository().by_part_number(part_no)
-            self.folder = Folder(id=self.id)
+        if not id:
+            logger.critical('Please provide the project\'s ID.')
+            return
+        self.id = id
+        self.folder = Folder(id=self.id)
+        if name:
+            self.name = name
+        else:
+            self.name = self.folder.get_name
         self.subfolders = self.get_subfolders()  # that actually exist on the server
-
-    def get_name(self) -> str:
-        return self.folder.get_name
 
     def get_subfolders(self) -> dict[str, Folder]:
         subfolder_data: list[str] = self.folder.get_contents('ishfolders')
@@ -692,7 +690,7 @@ class Project:
                 return self.subfolders
             except exceptions.Fault as e:
                 logger.critical('Problem with creating folder ' + folder_name +
-                                 '. Check in the Content Manager if it already exists\n' + str(e))
+                                '. Check in the Content Manager if it already exists\n' + str(e))
 
     def create_publication(self) -> Publication:
         pub_folder: Folder = self.subfolders.get('publications')
@@ -703,14 +701,14 @@ class Project:
                 pub: Publication = pub_folder.add_publication(self.name, disclos_level)
             except exceptions.Fault:
                 logger.critical('Problem with creating publication. ' +
-                                 'Check in the XMLContent Manager if it already exists')
+                                'Check in the XMLContent Manager if it already exists')
 
         elif len(pub_guids) == 1:
             pub = Publication(id=pub_guids[0])
             return pub
         else:
             logger.critical('Too many publications in folder. ' +
-                             'Please delete the unneeded publications in the XMLContent Manager')
+                            'Please delete the unneeded publications in the XMLContent Manager')
 
     def get_publication(self) -> Publication | None:
         pub_folder: Folder = self.subfolders.get('publications')
@@ -720,7 +718,7 @@ class Project:
             return pub
         else:
             logger.error('There should be only one publication. ' +
-                          'Please check the XMLContent Manager for missing/redundant files.')
+                         'Please check the XMLContent Manager for missing/redundant files.')
 
     def get_root_map(self) -> Map:
         map_folder: Folder = self.subfolders.get('maps')
@@ -742,7 +740,7 @@ class Project:
             assert len(var_guids) == 0
         except TypeError:
             logger.error('Either library variable already exists or source topic was not found. ' +
-                          'Check the Content Manager')
+                         'Check the Content Manager')
             source_name, source_guid = None, None
 
         try:
@@ -776,21 +774,12 @@ class Project:
 
 class SearchRepository:
 
-    def get_location(self) -> Folder:
-        part_type = self.get_press_or_dfe()
-        match part_type:
-            case 'press':
-                return self.get_press_series()
-            case 'dfe':
-                return Folder(id=7406676)
-
-    def get_press_or_dfe(self):
-        return input('\'press\' or \'dfe\'? ')
-
-    def get_press_series(self) -> Folder:
-        series = self.get_series_number()
+    @classmethod
+    def get_location(self, part_type) -> Folder:
         id = ''
-        match series:
+        match part_type:
+            case 'dfe':
+                id = 7406676
             case '3':
                 id = 6726982
             case '4':
@@ -799,14 +788,12 @@ class SearchRepository:
                 id = 6726980
             case '6':
                 id = 7406751
-            case 'common':
+            case 'common in presses':
                 id = 7308650
-        if series:
+        if part_type:
             return Folder(id=id)
 
-    def get_series_number(self):
-        return input('Enter series number or \'common\': ')
-
+    @classmethod
     def scan_helper(self,
                     part_number: int | str,
                     folder: Folder,
@@ -817,7 +804,7 @@ class SearchRepository:
         depth += 1
         for metadata, id in folder_data:
             name = metadata.dict_form.get('FNAME').get('text')
-            logger.info('Searching in', name, '(' + id + ')')
+            logger.info('Searching in ' + name + ' (' + id + ')')
             if part_number in name:
                 return name, id
             else:
@@ -827,22 +814,20 @@ class SearchRepository:
                 if result:
                     return result
 
+    @classmethod
     def scan_folder(self,
                     part_number: str | int,
                     folder: Folder,
-                    depth: int,
+                    start_depth: int,
                     max_depth: int = 2) -> \
             tuple[str | None, str | int | None]:
         logger.info('Searching...')
-        result = self.scan_helper(part_number, folder, depth, max_depth)
+        result = self.scan_helper(part_number, folder, start_depth, max_depth)
         if result:
-            logger.info('Found', str(result) + '.')
+            logger.info('Found ' + str(result) + '.')
             return result
         else:
             logger.info('Not found. Try a different scope')
-
-    def by_part_number(self, part_number: int | str) -> tuple[str | int | None, Folder | None]:
-        return self.scan_folder(part_number, self.get_location(), 0)
 
 
 def check_projects_for_titles_and_shortdescs(partno_list: list[str]):
@@ -853,7 +838,7 @@ def check_projects_for_titles_and_shortdescs(partno_list: list[str]):
         something_is_missing = False
         proj_name, folder_id = SearchRepository().scan_folder(part_number=part_no,
                                                               folder=Folder(id=Constants.INDIGO_TOP_FOLDER.value),
-                                                              depth=0, max_depth=5)
+                                                              start_depth=0, max_depth=5)
         proj = Project(proj_name, folder_id)
         topic_folder = proj.subfolders.get('topics')
         if not topic_folder:

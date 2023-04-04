@@ -3,7 +3,7 @@ import logging
 from tkinter import DISABLED, NORMAL, END
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 def debug(func):

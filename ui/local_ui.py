@@ -69,7 +69,7 @@ class LocalMapProcessing(ttk.LabelFrame):
         file = filedialog.askopenfilename(filetypes=[('DITA maps', '.ditamap')])
         if file:
             self.ditamap_var.set(os.path.abspath(file))
-            logger.debug('var: ' + self.ditamap_var.get())
+            logger.debug('ditamap_var: ' + self.ditamap_var.get())
             self.ditamap = LocalMap(self.ditamap_var.get())
             logger.debug(self.ditamap.image_folder)
             if len(self.ditamap.images) > 0:

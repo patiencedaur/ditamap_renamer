@@ -41,7 +41,7 @@ class DebugWindow(Frame):
         toggle.select()
         toggle.grid(row=0, column=0, sticky=W)
 
-        self.text = Text(self, height=8, width=64, wrap='word', state=DISABLED)
+        self.text = Text(self, height=8, width=60, wrap='word', state=DISABLED)
         self.text.grid(row=1, column=0, sticky=W)
 
         self.scrollbar = Scrollbar(self)
