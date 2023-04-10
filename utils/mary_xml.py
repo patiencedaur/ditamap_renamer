@@ -1,6 +1,6 @@
 from utils.mary_debug import logger
-import copy
-import re
+from copy import deepcopy
+from re import search
 from lxml import etree
 from utils.constants import Constants
 
@@ -169,7 +169,7 @@ class XMLContent:
         self.rename_tag('body', 'refbody')
         if self.root.findall('section') is None:
             refbody = self.root.find('refbody')
-            section = copy.deepcopy(refbody)
+            section = deepcopy(refbody)
             section.tag = 'section'
             refbody.clear()
             refbody.insert(0, section)
@@ -195,7 +195,7 @@ class XMLContent:
         else:  # process p's instead of ordered lists
             for p in filter(lambda x: self.is_list_item(x), self.root.iter('p')):
                 # remove the numbers at the start
-                numeration = re.search('^\d+\. ', p.text).group(0)
+                numeration = search('^\d+\. ', p.text).group(0)
                 p.text.replace(numeration, '')
                 self.convert_tag_to_step(p)
             self.wrap_steps()
@@ -207,7 +207,7 @@ class XMLContent:
         tag.insert(0, cmd)
 
     def is_list_item(self, p):
-        if re.search('^\d+\. ', p.text):
+        if search('^\d+\. ', p.text):
             return True
         return False
 
@@ -216,7 +216,7 @@ class XMLContent:
         taskbody = self.root.findall('taskbody')[0]
         if len(taskbody.findall('step')) == 0:
             return
-        steps = copy.deepcopy(taskbody)
+        steps = deepcopy(taskbody)
         steps.tag = 'steps'
         taskbody.clear()
         taskbody.append(steps)
@@ -260,7 +260,7 @@ class XMLContent:
         if len(self.root.findall('fig')) > 0:
             return
         for image in self.root.iter('image'):
-            img_tag = copy.deepcopy(image)
+            img_tag = deepcopy(image)
             image.tag = 'fig'
             image.clear()
             image.append(img_tag)
@@ -274,7 +274,7 @@ class XMLContent:
                 logger.debug(href_png)
                 # image.set('href', href_png)
     # def wrap_element(self, element: etree.Element, wrapper_tag: str):
-    #     wrapper = copy.deepcopy(element)
+    #     wrapper = deepcopy(element)
     #     wrapper.tag = wrapper_tag
     #     wrapper.clear()
     #     wrapper.append(element)
@@ -306,11 +306,11 @@ class XMLContent:
                 el.text.replace('NOTE:', '')
                 logger.debug('Found a note!', self.tree.getpath(el))
                 if el.tag == 'p':
-                    note_content = copy.deepcopy(el)
+                    note_content = deepcopy(el)
                     note = el
                 else:
                     nearest_p = yield etree.AncestorsIterator(el, 'p')
-                    note_content = copy.deepcopy(nearest_p)
+                    note_content = deepcopy(nearest_p)
                     note = nearest_p
                 note.tag = 'note'
                 note.clear()

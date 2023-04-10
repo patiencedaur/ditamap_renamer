@@ -3,6 +3,7 @@ import datetime
 import random
 import re
 from utils.mary_debug import logger
+from utils.mary_xml import XMLContent
 
 from lxml import etree
 from requests import Session
@@ -156,7 +157,7 @@ class Tag:
         # with open('tag.xml', 'w', encoding='utf-8') as f:
         #     f.write(xml)
         root = Unpack.to_tree(xml)
-        filename = self.name + '-' + datetime.date.today().isoformat() + '.csv'
+        filename = '../' + self.name + '-' + datetime.date.today().isoformat() + '.csv'
         with open(filename, 'w', encoding='utf-8') as dest:
             for tag in root.iter('tag'):
                 selectable = tag.find('selectable').text
@@ -188,7 +189,7 @@ class Auth:
     # client = Client(hostname + 'Application25.asmx?wsdl', wsse=UsernameToken(username, password))
     response = auth.Login('InfoShareAuthor', Constants.USERNAME, Constants.PASSWORD)
     token = response['psOutAuthContext']
-    logger.info('Login token:', token)
+    logger.info('Login token: ' + token)
 
     @staticmethod
     def get_dusername():
@@ -230,7 +231,8 @@ class DocumentObject:
         return folder_id
 
     def set_metadata_for_dynamic_delivery(self, product: int | str = None, css: int | str = None):
-        logger.info('Setting metadata:', locals(), 'for', self)
+        logger.info('Setting metadata: ' + str(locals()) + ' for ' + str(self))
+        # ignores empty values
         if product:
             set_product: Metadata = Metadata(('fhpiproduct', product))
             self.set_metadata(set_product)
@@ -243,7 +245,7 @@ class DocumentObject:
         set_region: Metadata = Metadata(('fhpiregion', worldwide))
         self.set_metadata(set_region)
 
-        logger.info('Filled mandatory metadata for', self)
+        logger.info('Filled mandatory metadata for ' + str(self))
 
     def get_current_dynamic_delivery_metadata(self) -> tuple[str | int, str | int, str | int]:
         mandatory_metadata: Metadata = Metadata(('fhpiproduct', ''), ('fhpicustomersupportstories', ''),
@@ -267,6 +269,7 @@ class DocumentObject:
             arg.apply_dynamic_delivery_metadata_from_source(dd_metadata)
 
     def get_object_as_tree(self) -> etree.Element:
+        logger.info('id: ' + str(self.id))
         content = DocumentObject.service.GetObject(Auth.token, self.id, psVersion=1,
                                                    psLanguage='en-US')['psOutXMLObjList']
         root = Unpack.to_tree(content)
@@ -490,8 +493,15 @@ class Publication:
         ).pack
         Publication.service.SetMetadata(Auth.token, self.id, psVersion=1, psXMLMetadata=meta)
 
-    def has_map(self):
-        pass
+    def get_map(self):
+        meta = Metadata(
+            IshField('fishmasterref', '')
+        ).pack
+        xml = Publication.service.GetMetaData(Auth.token, self.id, psVersion=1, psXMLRequestedMetaData=meta)[
+            'psOutXMLObjList']
+        map_data = Unpack.to_metadata(xml).dict_form
+        map_id = map_data.get('FISHMASTERREF').get('text')
+        return Map(id=map_id)
 
     def set_hpi_pdf_metadata(self):
         # Requires a created HPI PDF output
@@ -708,7 +718,7 @@ class Project:
             return pub
         else:
             logger.critical('Too many publications in folder. ' +
-                            'Please delete the unneeded publications in the XMLContent Manager')
+                            'Please delete the unneeded publications in the Content Manager')
 
     def get_publication(self) -> Publication | None:
         pub_folder: Folder = self.subfolders.get('publications')
@@ -717,8 +727,8 @@ class Project:
             pub = Publication(id=pub_guids[0])
             return pub
         else:
-            logger.error('There should be only one publication. ' +
-                         'Please check the XMLContent Manager for missing/redundant files.')
+            logger.error('The project should have only one publication. ' +
+                         'Please check the Content Manager for missing/redundant files.')
 
     def get_root_map(self) -> Map:
         map_folder: Folder = self.subfolders.get('maps')
@@ -749,7 +759,16 @@ class Project:
         except TypeError:
             logger.warning('Library variable data not found in topic folder')
 
-    def complete_cheetah_migration(self) -> None:
+    def needs_migration(self):
+        for folder_name in Project.folder_names.keys():
+            if folder_name not in self.subfolders.keys():
+                return True
+        return False
+
+    def complete_migration(self) -> None:
+        if not self.needs_migration():
+            logger.warning('This project is already migrated.')
+            return
         for folder_name in Project.folder_names.keys():
             self.create_subfolder(folder_name)
         pub: Publication = self.create_publication()
@@ -770,6 +789,37 @@ class Project:
         for folder_name in Project.folder_names.keys():
             self.create_subfolder(folder_name)
         return self.subfolders
+
+    def check_for_titles_and_shortdescs(self):
+        warnings = []
+        topic_folder = self.subfolders.get('topics')
+        if not topic_folder:
+            warnings.append('topics folder does not exist in project ' + self.name + '- skipping')
+            return
+        topic_guids: list[str] = topic_folder.get_contents('ishobjects')
+        logger.debug(topic_guids)
+        for topic_guid in topic_guids:
+            topic = Topic(id=topic_guid)
+            topic_contents = XMLContent(root=topic.get_decoded_content_as_tree())
+            if (topic_contents.title_missing() or topic_contents.shortdesc_missing()) \
+                    and topic_contents.outputclass != 'frontcover' and topic_contents.outputclass != 'backcover':
+                topic_name = topic.get_metadata(Metadata(('ftitle', ''))).dict_form.get('FTITLE').get('text')
+                if topic_contents.title_missing():
+                    report = 'Title missing:\n' + topic_name + '\n'
+                    warnings.append(report)
+                if topic_contents.shortdesc_missing():
+                    report = 'Shortdesc missing:\n' + topic_name + '\n'
+                    warnings.append(report)
+        if len(warnings) > 0:
+            msg = 'Project ' + self.name + ' not ready for Dynamic Delivery.' + \
+                  '\n------------------------------------\n' + \
+                  'Problematic topics:\n'
+            for warning in warnings:
+                msg = msg + warning + '\n'
+        else:
+            msg = 'Congratulations! All the titles and short descriptions are in place.'
+        logger.info(msg)
+        return msg
 
 
 class SearchRepository:
@@ -830,8 +880,8 @@ class SearchRepository:
             logger.info('Not found. Try a different scope')
 
 
-def check_projects_for_titles_and_shortdescs(partno_list: list[str]):
-    from utils.mary_xml import XMLContent
+
+def check_multiple_projects_for_titles_and_shortdescs(partno_list: list[str]):
     warnings = []
     not_ready = []
     for part_no in partno_list:
@@ -874,9 +924,8 @@ def check_projects_for_titles_and_shortdescs(partno_list: list[str]):
 if __name__ == '__main__':
     project = Project()
     if project:
-        project.complete_cheetah_migration()
+        project.complete_migration()
 
-    # check_projects_for_titles_and_shortdescs(['CA394-28940'])
 
     # LOV.get_value_tree('FHPISUPPRESSTITLEPAGE')
 

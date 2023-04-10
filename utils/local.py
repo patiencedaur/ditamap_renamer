@@ -379,19 +379,21 @@ class LocalTopic(LocalProjectFile):
         for ditamap_image in self.ditamap.images:
             ditamap_href = ditamap_image.href
             for fig in self.content.root.iter('fig'):
-                topic_image_title = fig.find('title')
                 topic_image_tag = fig.find('image')
                 if topic_image_tag is None:
                     continue
                 image_href_in_topic = topic_image_tag.attrib.get('href')
-                if fig.findall('alt') is None:
-                    topic_image_tag.append(TextElement('alt', '\u00A0'))
-                if not image_href_in_topic:
+                if image_href_in_topic is None:
                     continue
+                topic_image_title = fig.find('title')
+                alt = topic_image_tag.find('alt')
+                if alt is None:
+                    alt = TextElement('alt', '\u00A0')
+                    topic_image_tag.append(alt)
                 if image_href_in_topic == ditamap_href or image_href_in_topic.split('/')[-1] == ditamap_href:
                     if topic_image_title is not None and topic_image_title.text is not None:
                         ditamap_image.title = topic_image_title.text.strip()
-                        fig.find('alt').text = ditamap_image.title
+                        alt.text = ditamap_image.title
                     topic_images.append(ditamap_image)
         return set(topic_images)
 

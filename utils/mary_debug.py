@@ -4,6 +4,26 @@ from tkinter import DISABLED, NORMAL, END
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+logger.addHandler(ch)
+
+
+class MaryLogHandler(logging.Handler):
+
+    def __init__(self, app: 'App'):
+        super().__init__()
+        self.setLevel(logging.INFO)
+        self.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+        widget = getattr(app, 'debug_window')
+        self.text = getattr(widget, 'text')
+        self.text.config(state=DISABLED)
+
+    def emit(self, record):
+        self.text.config(state=NORMAL)
+        self.text.insert(END, self.format(record) + '\n')
+        self.text.see(END)
+        self.text.config(state=DISABLED)
 
 
 def debug(func):
@@ -21,20 +41,3 @@ def debugmethods(cls):
             type(v)
             setattr(cls, k, debug(v))
     return cls
-
-
-class MaryLogHandler(logging.Handler):
-
-    def __init__(self, app: 'App'):
-        super().__init__()
-        self.setLevel(logging.DEBUG)
-        self.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
-        widget = getattr(app, 'debug_window')
-        self.text = getattr(widget, 'text')
-        self.text.config(state=DISABLED)
-
-    def emit(self, record):
-        self.text.config(state=NORMAL)
-        self.text.insert(END, self.format(record) + '\n')
-        self.text.see(END)
-        self.text.config(state=DISABLED)
