@@ -22,21 +22,21 @@ doctypes: list[str] = ['concept', 'task', 'reference']
 
 def file_rename(old_path: str, new_path: str) -> None:
     if not os.path.exists(old_path):
-        logger.warning('No file to rename:', old_path)
+        logger.warning('No file to rename: ' + old_path)
         return
     if os.path.exists(new_path):
-        logger.warning('New path already exists:', new_path)
+        logger.warning('New path already exists: ' + new_path)
         return
     if old_path == new_path:
-        logger.error('Old path equal to new path:', old_path)
+        logger.error('Old path equals to new path: ' + old_path)
     else:
         os.rename(old_path, new_path)
-        logger.info('renamed', old_path, 'to', new_path)
+        logger.info('renamed ' + old_path + ' to ' + new_path)
 
 
 def file_delete(path: str) -> None:
     if not os.path.exists(path):
-        logger.error('No file to delete:', path)
+        logger.error('No file to delete: ' + path)
         return
     os.remove(path)
 
@@ -128,7 +128,7 @@ class LocalMap(LocalProjectFile):
             case 'cheetah':
                 self.image_folder = self.folder
             case 'word':
-                self.image_folder = os.path.join(self.folder, 'media')
+                self.image_folder = self.folder + os.sep + 'media'
         self.images = self.get_images()
         self.ditamap = self
         self.topics = self.get_topics()
@@ -178,7 +178,12 @@ class LocalMap(LocalProjectFile):
         image_list = []
         for file in os.listdir(self.image_folder):
             if file.endswith(('png', 'jpg', 'gif')):
-                image_list.append(Image(file, self))
+                if self.folder != self.image_folder:
+                    href = os.path.basename(self.image_folder) + '/' + file
+                else:
+                    href = file
+                print(href)
+                image_list.append(Image(href, self))
         return set(image_list)
 
     def get_topic_from_topicref(self, topicref: etree.Element):
@@ -203,15 +208,16 @@ class LocalMap(LocalProjectFile):
         topic.content.set_outputclass(oc)
         topic.update_doctype_in_map()
 
-        try:
-            topic.cast()
-        except:
-            logger.warning('Cannot cast', topic, 'to', topic.__class__)
+        if self.source == 'word':
+            try:
+                topic.cast()
+            except:
+                logger.warning('Cannot cast ' + str(topic) + ' to ' + str(topic.__class__))
 
         if self.source == 'cheetah':
             topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
             ish_path = topic_path.replace('.dita', '.3sish')
-            topic.ish = LocalISHFile(ish_path, self)
+            topic.ish= LocalISHFile(ish_path, self)
         return topic
 
     def get_topics(self) -> list['LocalTopic']:
@@ -308,23 +314,26 @@ class LocalMap(LocalProjectFile):
         # give image files new names
         for img, topics in image_uses_in_topic.items():
             new_name: str = img.generate_name(image_prefix)
-            current_path: str = os.path.join(self.image_folder, img.href)
+            current_path: str = os.path.join(self.folder, img.href)
             new_path: str = os.path.join(self.image_folder, new_name)
             if not os.path.exists(current_path) or os.path.exists(new_path):
                 logger.error('Current path does not exist or new path exists')
+            logger.debug('New path: ' + new_path)
             file_rename(current_path, new_path)
-            # rename_path hrefs in topics
+            # rename hrefs in topics
+            if self.image_folder != self.folder:
+                new_name = os.path.basename(self.image_folder) + '/' + new_name
             for topic in topics:
-                for fig in topic.content.root.iter('fig'):
-                    for img_tag in fig.iter('image'):
-                        if img_tag.attrib.get('href') == img.href:
-                            logger.info('Renaming', img.href, 'to', new_name)
-                            img_tag.set('href', new_name)
+                for img_tag in topic.content.root.iter('image'):
+                    if img_tag.attrib.get('href') != img.href:
+                        continue
+                    logger.info('Renaming ' + img.href + ' to ' + new_name)
+                    img_tag.set('href', new_name)
                 topic.write()
 
     def create_root_concept(self, title='How-to Guide'):
-        template_path = '../templates/root_concept.dita'
-        concept_filename = self.basename + '.dita'
+        template_path = 'templates/root_concept.dita'
+        concept_filename = 'root_' + self.basename + '.dita'
         concept_path = os.path.join(self.folder, concept_filename)
         copy2(template_path, concept_path)
         rconcept = LocalConceptTopic(concept_path, self)
@@ -390,6 +399,8 @@ class LocalTopic(LocalProjectFile):
                 if alt is None:
                     alt = TextElement('alt', '\u00A0')
                     topic_image_tag.append(alt)
+                else:
+                    alt.text = '\u00A0'
                 if image_href_in_topic == ditamap_href or image_href_in_topic.split('/')[-1] == ditamap_href:
                     if topic_image_title is not None and topic_image_title.text is not None:
                         ditamap_image.title = topic_image_title.text.strip()
@@ -471,7 +482,7 @@ class LocalTopic(LocalProjectFile):
             logger.info('Skipped: %s, nothing to rename (title missing)' % old_topic.name)
             return
 
-        logger.info('Updating name:', old_topic)
+        logger.info('Updating name: ' + str(old_topic))
         new_name = self.create_new_name(num_rep)
         if old_topic.name == new_name:
             logger.info('Skipped: %s, already renamed' % old_topic.name)
@@ -624,7 +635,8 @@ class Image:
             # name the image based on its title
             name = '_'.join(self.temp_title.split(' '))
         else:
-            name = self.href.rsplit('.', 1)[0]
+            # remove extension and image folder, if there is one
+            name = self.href.rsplit('.', 1)[0].rsplit('/')[-1]
         name = 'img_' + prefix + '_' + re.sub(r'\W+', '', name) + self.ext
         return name
 
