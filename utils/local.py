@@ -162,7 +162,7 @@ class LocalMap(LocalProjectFile):
         if '3sish' in content_types.keys():
             if len(content_types['dita']) != len(content_types['3sish']):
                 logger.critical('Some DITA topics are missing their ISH files, or vice versa.',
-                      'Please check the contents of the folder:', self.folder)
+                                'Please check the contents of the folder:', self.folder)
             else:
                 logger.info('This project is derived from a Cheetah file')
                 return 'cheetah'
@@ -212,12 +212,12 @@ class LocalMap(LocalProjectFile):
             try:
                 topic.cast()
             except:
-                logger.warning('Cannot cast ' + str(topic) + ' to ' + str(topic.__class__))
+                logger.debug('Cannot cast ' + str(topic) + ' to ' + str(topic.__class__))
 
         if self.source == 'cheetah':
             topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
             ish_path = topic_path.replace('.dita', '.3sish')
-            topic.ish= LocalISHFile(ish_path, self)
+            topic.ish = LocalISHFile(ish_path, self)
         return topic
 
     def get_topics(self) -> list['LocalTopic']:

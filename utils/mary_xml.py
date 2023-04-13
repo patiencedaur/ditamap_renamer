@@ -222,7 +222,7 @@ class XMLContent:
         taskbody.append(steps)
 
     def is_mostly_list(self):
-        ol = yield self.root.iter('ol')
+        ol = self.root.find('ol')
         if ol is not None:
             return True
         for p in self.root.iter('p'):
@@ -237,15 +237,18 @@ class XMLContent:
         return False
 
     def move_title_shortdesc_text_from_p(self):
-        body = self.tree.xpath('refbody|body')[0]
-        p_tags = body.findall('p')
-        future_title = p_tags[0]
-        future_shortdesc = p_tags[1].find('b')
-        logger.debug(future_title.text, future_shortdesc.text)
-        self.set_title(future_title.text)
-        self.set_shortdesc(future_shortdesc.text)
-        for i in range(2):
-            body.remove(p_tags[i])
+        try:
+            body = self.tree.xpath('refbody|body')[0]
+            p_tags = body.findall('p')
+            future_title = p_tags[0]
+            future_shortdesc = p_tags[1].find('b')
+            logger.debug(future_title.text, future_shortdesc.text)
+            self.set_title(future_title.text)
+            self.set_shortdesc(future_shortdesc.text)
+            for i in range(2):
+                body.remove(p_tags[i])
+        except IndexError:
+            return
 
     def detect_type(self):
         if self.is_mostly_list():
@@ -270,9 +273,9 @@ class XMLContent:
             href = image.attrib.get('href')
             href_and_ext = href.split('.')
             if href_and_ext[-1] != 'png':
-                href_png = '.'.join('.'.join((href_and_ext[:-1], 'png')))
+                href_png = '.'.join((href_and_ext[0], 'png'))
                 logger.debug(href_png)
-                # image.set('href', href_png)
+                image.set('href', href_png)
     # def wrap_element(self, element: etree.Element, wrapper_tag: str):
     #     wrapper = deepcopy(element)
     #     wrapper.tag = wrapper_tag
@@ -291,8 +294,9 @@ class XMLContent:
             'collection-type': 'sequence',
             'outputclass': 'appendices'
         })
-        self.root.insert(2, body_group)
-        self.root.insert(-2, appendix_group)
+        # assuming we already have a root context topic
+        self.root[1].insert(2, body_group)
+        self.root[1].insert(-2, appendix_group)
 
     def process_notes(self):
         for el in self.root.iter():
@@ -316,3 +320,15 @@ class XMLContent:
                 note.clear()
                 note.append(note_content)
                 logger.debug(self.tree.getpath(note_content))
+
+    def create_shortdesc_from_first_p(self):
+        if self.shortdesc_missing():
+            body = self.tree.xpath('body|refbody|taskbody|conbody')
+            try:
+                first_el = body[0][0]
+                following_el = body[0][1]
+                if first_el.tag == 'p' and first_el.text and not following_el.find('image'):
+                    self.shortdesc_tag.text = first_el.text
+                    body[0].remove(first_el)
+            except IndexError:
+                return

@@ -58,6 +58,7 @@ def after_conversion(project_folder):
     for t in ditamap.topics:
         t.content.wrap_images_in_fig()
         t.content.process_notes()
+        t.content.create_shortdesc_from_first_p()
         t.write()
 
     for t in ditamap.topics:
@@ -68,14 +69,19 @@ def after_conversion(project_folder):
     ditamap.write()
 
 
-doc_folder = r'C:\hp_cheetahr5\TS5ES-00017 - Buckling Assembly Service'
+doc_folder = r'C:\hp_cheetahr5\TS5ES-00009 - Feeder Service'
 # doc_path = os.path.join(doc_folder, 'TS5ES-00017.docx')
 # prepare_for_batch_converter(doc_path)
 
-dita_project_folder = os.path.join(doc_folder, 'output')
+dita_project_folder = os.path.join(doc_folder, 'output - Copy')
+after_conversion(dita_project_folder)
 
-ditamap = get_ditamap(dita_project_folder)
-
+# ditamap = get_ditamap(dita_project_folder)
+# topic = ditamap.topics[10]
+# topic.content.create_shortdesc_from_first_p()
+# for t in ditamap.topics:
+#     t.content.create_shortdesc_from_first_p()
+#     break
 
 # Convert with Oxygen Batch Converter using Oxygen 25.
 # Create root concept.
@@ -84,6 +90,7 @@ ditamap = get_ditamap(dita_project_folder)
 # Wrap steps.
 # Update topic groups in map.
 # Process notes.
+# First paragraph becomes short description.
 # Copy folder.
 # Run MaryTreat, and it will recognize the types and update the map.
 

@@ -2,6 +2,7 @@ from functools import wraps
 import logging
 from tkinter import DISABLED, NORMAL, END
 
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
@@ -9,25 +10,27 @@ ch.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
 logger.addHandler(ch)
 
 
-class MaryLogHandler(logging.Handler):
+class DebugWindowLogHandler(logging.StreamHandler):
 
-    def __init__(self, app: 'App'):
+    def __init__(self, text_widget):
         super().__init__()
         self.setLevel(logging.INFO)
         self.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
-        widget = getattr(app, 'debug_window')
-        self.text = getattr(widget, 'text')
+        self.text = text_widget
         self.text.config(state=DISABLED)
+        logger.addHandler(self)
 
     def emit(self, record):
+        msg = self.format(record)
         self.text.config(state=NORMAL)
-        self.text.insert(END, self.format(record) + '\n')
+        self.text.insert(END, msg + '\n')
         self.text.see(END)
         self.text.config(state=DISABLED)
 
 
 def debug(func):
     name = func.__qualname__
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         logger.debug('Running', name)
