@@ -11,6 +11,7 @@ class TabControl(ttk.Notebook):
 
     def __init__(self, master):
         super().__init__(master)
+        self.enable_traversal()
 
         local_tab = LocalTab(self)
         client_tab = ServerActionsTab(self)

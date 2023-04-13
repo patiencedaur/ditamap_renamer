@@ -3,7 +3,7 @@ from tkinter import Entry
 from tkinter import messagebox
 from tkinter.ttk import Treeview
 from utils.constants import Constants
-from utils.mary_debug import logger
+from utils.mary_debug import logger, debugmethods
 from utils.mary_xml import XMLContent
 from utils.tridionclient import SearchRepository, Project
 
@@ -24,9 +24,12 @@ class NarrowDownLocation(LabelFrame):
         buttons = ['3', '4', '5', '6', 'Common in Presses', 'DFE']
         for button in buttons:
             btn = Radiobutton(self, text=button, variable=self.part_type, value=button.lower(),
-                              command=self.get_location_folder)
+                              command=self.call_get_location_folder)
             btn.grid(row=0, column=buttons.index(button), sticky=EW, **padding)
         self.part_type.set('common in presses')
+
+    def call_get_location_folder(self):
+        self.after(100, self.get_location_folder)
 
     def get_location_folder(self):
         part_type = self.part_type.get()
@@ -50,7 +53,8 @@ class SearchPartNumber(Frame):
         query_field = Entry(self, textvariable=self.search_query)
         query_field.grid(row=1, column=0, columnspan=4, **padding, sticky=EW)
 
-        search_button = Button(self, text='Search', command=self.find_project)
+        search_button = Button(self, text='Search',
+                               command=lambda: self.after(400, self.find_project))
         search_button.grid(row=1, column=3, **padding, sticky=EW)
 
         self.select_part_type = NarrowDownLocation(self)
@@ -69,9 +73,10 @@ class SearchPartNumber(Frame):
             else:
                 messagebox.showinfo('Not found', 'Project not found. Try a different scope.')
         else:
-            messagebox.showinfo('No project', 'Please select a project using the search.')
+            messagebox.showinfo('No project', 'Please type a part number in the search box.')
 
 
+@debugmethods
 class ServerActionsTab(Frame):
 
     def __init__(self, master):
@@ -120,19 +125,16 @@ class ServerActionsTab(Frame):
 
     def call_complete_migration(self):
         if self.project:
-            if not self.project.needs_migration():
-                messagebox.showinfo('Migration already completed', 'This project is already migrated.')
-            else:
-                self.project.complete_migration()
+            self.after(100, self.project.complete_migration)
         else:
-            messagebox.showinfo('No project', 'Please select a project using the search.')
+            messagebox.showinfo('No project', 'Please select a project using the search box.')
 
     def call_check_titles_and_sd(self):
         if self.project:
             message = self.project.check_for_titles_and_shortdescs()
             messagebox.showinfo('Title and shortdescs', message)
         else:
-            messagebox.showinfo('No project', 'Please select a project using the search.')
+            messagebox.showinfo('No project', 'Please select a project using the search box.')
 
     def call_manage_pub(self):
         if self.project:

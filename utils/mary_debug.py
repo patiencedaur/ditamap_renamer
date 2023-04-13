@@ -21,11 +21,13 @@ class DebugWindowLogHandler(logging.StreamHandler):
         logger.addHandler(self)
 
     def emit(self, record):
-        msg = self.format(record)
-        self.text.config(state=NORMAL)
-        self.text.insert(END, msg + '\n')
-        self.text.see(END)
-        self.text.config(state=DISABLED)
+        def write_record():
+            msg = self.format(record)
+            self.text.config(state=NORMAL)
+            self.text.insert(END, msg + '\n')
+            self.text.see(END)
+            self.text.config(state=DISABLED)
+        self.text.after(100, write_record)
 
 
 def debug(func):
@@ -33,7 +35,7 @@ def debug(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug('Running', name)
+        logger.debug('Running ' + name)
         return func(*args, **kwargs)
     return wrapper
 

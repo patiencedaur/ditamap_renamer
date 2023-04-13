@@ -27,6 +27,7 @@ def check_token(func):
         if token is None:
             token = Auth.get_token()
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -167,14 +168,15 @@ class Tag:
 
     def __init__(self, name: str) -> None:
         self.hostname = Constants.HOSTNAME + 'MetadataBinding25.asmx?wsdl'
-        self.service = Client(self.hostname, service_name='MetadataBinding25', port_name='MetadataBinding25Soap').service
+        self.service = Client(self.hostname, service_name='MetadataBinding25',
+                              port_name='MetadataBinding25Soap').service
         self.name = name
         self.level = IshField.f.get(name.upper()).get('level').lower()
 
     def save_possible_values_to_file(self) -> None:
         xml = self.service.RetrieveTagStructure(token,
-                                               psFieldName=self.name.upper(),
-                                               psFieldLevel=self.level)['psXMLFieldTags']
+                                                psFieldName=self.name.upper(),
+                                                psFieldLevel=self.level)['psXMLFieldTags']
         # with open('tag.xml', 'w', encoding='utf-8') as f:
         #     f.write(xml)
         root = Unpack.to_tree(xml)
@@ -209,15 +211,15 @@ class Auth:
     @staticmethod
     def get_token():
         service = Client(Constants.HOSTNAME + 'Application25.asmx?wsdl',
-                              service_name='Application25',
-                              port_name='Application25Soap',
-                              transport=Transport(session=Session())).service
+                         service_name='Application25',
+                         port_name='Application25Soap',
+                         transport=Transport(session=Session())).service
 
         # client = Client(hostname + 'Application25.asmx?wsdl', wsse=UsernameToken(username, password))
         response = service.Login('InfoShareAuthor', Constants.USERNAME, Constants.PASSWORD)
-        token = response['psOutAuthContext']
-        logger.info('Login token: ' + token)
-        return token
+        tkn = response['psOutAuthContext']
+        logger.info('Login token: ' + tkn)
+        return tkn
 
     @staticmethod
     def get_dusername():
@@ -246,7 +248,7 @@ class DocumentObject:
 
     def set_metadata(self, metadata: Metadata) -> None:
         self.service.SetMetadata(token, self.id, psVersion=1, psLanguage='en-US',
-                                           psXMLMetadata=metadata.pack)
+                                 psXMLMetadata=metadata.pack)
         logger.info('Set metadata:', metadata, 'for object:', self)
 
     def get_metadata(self, metadata: Metadata) -> Metadata:
@@ -301,7 +303,7 @@ class DocumentObject:
     def get_object_as_tree(self) -> etree.Element:
         logger.info('id: ' + str(self.id))
         content = self.service.GetObject(token, self.id, psVersion=1,
-                                                   psLanguage='en-US')['psOutXMLObjList']
+                                         psLanguage='en-US')['psOutXMLObjList']
         root = Unpack.to_tree(content)
         return root
 
@@ -348,8 +350,8 @@ class PDFObject(DocumentObject):
         ).pack
 
         response = self.service.Create(token, self.folder_id, folder_type, psVersion='new',
-                                                 psLanguage='en-US',
-                                                 psXMLMetadata=request, psEdt='EDTPDF', pbData=pbdata)
+                                       psLanguage='en-US',
+                                       psXMLMetadata=request, psEdt='EDTPDF', pbData=pbdata)
         id = response['psLogicalId']
         return id
 
@@ -390,10 +392,11 @@ class Map(DocumentObject):
             # IshField('fmastertype', 'Troubleshooting')
         ).pack
         response = self.service.Create(token, self.folder_id, folder_type, psVersion='new',
-                                                 psLanguage='en-US',
-                                                 psXMLMetadata=request, psEdt='EDTXML', pbData=pbdata)
+                                       psLanguage='en-US',
+                                       psXMLMetadata=request, psEdt='EDTXML', pbData=pbdata)
         id = response['psLogicalId']
         return id
+
 
 @requires_token
 class LibVariable(DocumentObject):
@@ -431,9 +434,9 @@ class LibVariable(DocumentObject):
         ).pack
 
         response = self.service.Create(token, plFolderRef=self.folder_id,
-                                                 psIshType=self.type, psLanguage='en-US',
-                                                 psVersion='new', psXMLMetadata=request,
-                                                 psEdt='EDTXML', pbData=pbdata)['psLogicalId']
+                                       psIshType=self.type, psLanguage='en-US',
+                                       psVersion='new', psXMLMetadata=request,
+                                       psEdt='EDTXML', pbData=pbdata)['psLogicalId']
         return response
 
 
@@ -446,7 +449,6 @@ class Topic(DocumentObject):
 
 @requires_token
 class Publication:
-
     disclosure_levels: dict[str, int | str] = {
         'For HP and Channel Partner Internal Use': 47406819852170807613486806879990,
         'HP and Customer Viewable': 287477763180518087286275037723076
@@ -459,7 +461,8 @@ class Publication:
         my_existing_pub = Publication(id='guid_that_exists_on_server')
         """
         self.hostname = Constants.HOSTNAME + 'PublicationOutput25.asmx?wsdl'
-        self.service = Client(self.hostname, service_name='PublicationOutput25', port_name='PublicationOutput25Soap').service
+        self.service = Client(self.hostname, service_name='PublicationOutput25',
+                              port_name='PublicationOutput25Soap').service
         if name and folder_id and not id:
             self.name = name
             self.folder_id = folder_id
@@ -476,14 +479,14 @@ class Publication:
             IshField('fishrequiredresolutions', 'VRESLOW'),
         ).pack
         pub_response = self.service.Create(token, self.folder_id, psVersion='new',
-                                                  psXMLMetadata=meta)
+                                           psXMLMetadata=meta)
         return pub_response['psLogicalId']
 
     def get_hpi_pdf_metadata(self, metadata: Metadata) -> Metadata:
         xml = self.service.GetMetaData(token, self.id, psVersion=1,
-                                              psOutputFormat='HPI PDF',
-                                              psLanguageCombination='en-US',
-                                              psXMLRequestedMetaData=metadata.pack)['psOutXMLObjList']
+                                       psOutputFormat='HPI PDF',
+                                       psLanguageCombination='en-US',
+                                       psXMLRequestedMetaData=metadata.pack)['psOutXMLObjList']
         return Unpack.to_metadata(xml)
 
     def get_metadata(self) -> Metadata:
@@ -548,14 +551,14 @@ class Publication:
             ('fhpisecondarycolor', 'blue.hp.2925c')
         ).pack
         self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
-                                        psOutputFormat='HPI PDF', psLanguageCombination='en-US')
+                                 psOutputFormat='HPI PDF', psLanguageCombination='en-US')
 
     def publish_portals(self):
         meta = Metadata(('fhpipublishtoportals', 'yes')).pack
         # required_meta = Metadata(('fishoutputformatref', 'HPI PDF')).pack
         self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
-                                        # psXMLRequiredCurrentMetadata=required_meta,
-                                        psOutputFormat='HPI PDF', psLanguageCombination='en-US')
+                                 # psXMLRequiredCurrentMetadata=required_meta,
+                                 psOutputFormat='HPI PDF', psLanguageCombination='en-US')
 
 
 @debugmethods
@@ -572,7 +575,7 @@ class Folder:
         """
         self.hostname = Constants.HOSTNAME + 'Folder25.asmx?wsdl'
         self.service = Client(self.hostname, service_name='Folder25', port_name='Folder25Soap').service
-        
+
         self.id = id
         self.name = name
         self.type = type
@@ -581,9 +584,9 @@ class Folder:
 
         if name and type and parent_id and not id:
             new_folder_response = self.service.Create(token, self.parent_id, self.type, self.name,
-                                                        plOutNewFolderRef=str(random.randrange(2 ^ 32)))
+                                                      plOutNewFolderRef=str(random.randrange(2 ^ 32)))
             self.id = new_folder_response['plOutNewFolderRef']
-            logger.debug('Created folder:', self.id, self.name)
+            logger.debug('Created folder: ' + str(self.id) + str(self.name))
         if metadata:
             self.name = self.metadata.dict_form.get('FNAME').get('text')
             self.type = self.metadata.dict_form.get('FDOCUMENTTYPE').get('text')
@@ -604,7 +607,7 @@ class Folder:
         logger.debug('Getting metadata...')
         meta: str = Metadata(('fname', ''), ('fishfolderpath', ''), ('fdocumenttype', '')).pack
         xml = self.service.GetMetaDataByIshFolderRef(token, plFolderRef=self.id,
-                                                       psXMLRequestedMetaData=meta)['psOutXMLFolderList']
+                                                     psXMLRequestedMetaData=meta)['psOutXMLFolderList']
         if search_mode == 'ishfolders':
             return Unpack.to_metadata(xml, 'ishfolders')
         return Unpack.to_metadata(xml)
@@ -657,14 +660,15 @@ class Folder:
         """
         guids: list[str] = self.get_contents('ishobjects')
 
-        def get_obj_name_from_guid(guid: str) -> str:
+        def get_obj_name_from_guid(guid_no: str) -> str:
             req_metadata: str = Metadata(('ftitle', '')).pack
-            xml = self.service.GetMetaData(token, guid,
-                                                     psXMLRequestedMetaData=req_metadata)['psOutXMLObjList']
+            xml = DocumentObject().service.GetMetaData(token, guid_no,
+                                           psXMLRequestedMetaData=req_metadata)['psOutXMLObjList']
             xml = Unpack.wrap(xml)
             obj_metadata: Metadata = Unpack.to_metadata(xml)
-            obj_name = [field.dict_form.get('FTITLE').get('text') for field in obj_metadata if field is not None][0]
-            return obj_name
+            object_name = [field.dict_form.get('FTITLE').get('text')
+                           for field in obj_metadata if field is not None][0]
+            return object_name
 
         if len(guids) == 1:
             return get_obj_name_from_guid(guids[0]), guids[0]
@@ -748,7 +752,8 @@ class Project:
         if len(pub_guids) == 0:
             disclos_level: str | int = Publication.disclosure_levels.get('HP and Customer Viewable')
             try:
-                pub: Publication = pub_folder.add_publication(self.name, disclos_level)
+                pub = pub_folder.add_publication(self.name, disclos_level)
+                return pub
             except exceptions.Fault:
                 logger.critical('Problem with creating publication. ' +
                                 'Check in the XMLContent Manager if it already exists')
@@ -792,6 +797,9 @@ class Project:
             logger.error('Either library variable already exists or source topic was not found. ' +
                          'Check the Content Manager')
             source_name, source_guid = None, None
+        except AssertionError:
+            logger.warning("The libvar {var_guids[0]} was already migrated")
+            return
 
         try:
             var_obj = LibVariable(name=source_name, folder_id=var_folder.id, topic_guid=source_guid)
@@ -799,27 +807,19 @@ class Project:
         except TypeError:
             logger.warning('Library variable data not found in topic folder')
 
-    def needs_migration(self):
-        for folder_name in Project.folder_names.keys():
-            if folder_name not in self.subfolders.keys():
-                return True
-        return False
-
     def complete_migration(self) -> None:
-        if not self.needs_migration():
-            logger.warning('This project is already migrated.')
-            return
+        logger.info("Starting migration...")
         for folder_name in Project.folder_names.keys():
             self.create_subfolder(folder_name)
         pub: Publication = self.create_publication()
         root_map: Map = self.get_root_map()
-        logger.info('Root map:', root_map, 'adding to publication...')
+        logger.info('Root map: ' + str(root_map) + ', adding to publication...')
         pub.add_map(root_map)
         logger.info('Searching for library variable...')
         libvar: LibVariable = self.migrate_libvar_from_topic()
         try:
             if libvar.id:
-                logger.info('Found', libvar, 'adding to publication...')
+                logger.info('Found ' + str(libvar) + ', adding to publication...')
                 pub.add_resource(libvar)
         except AttributeError:
             logger.info('Library variable not found, continuing...')
@@ -865,8 +865,8 @@ class Project:
 @debugmethods
 class SearchRepository:
 
-    @classmethod
-    def get_location(self, part_type) -> Folder:
+    @staticmethod
+    def get_location(part_type) -> Folder:
         id = ''
         match part_type:
             case 'dfe':
@@ -884,9 +884,8 @@ class SearchRepository:
         if part_type:
             return Folder(id=id)
 
-    @classmethod
-    def scan_helper(self,
-                    part_number: int | str,
+    @staticmethod
+    def scan_helper(part_number: int | str,
                     folder: Folder,
                     depth: int,
                     max_depth: int = 2) \
@@ -901,19 +900,19 @@ class SearchRepository:
             else:
                 if depth > max_depth:
                     continue
-                result = self.scan_helper(part_number, Folder(id=id), depth, max_depth)
+                result = SearchRepository.scan_helper(part_number,
+                                                      Folder(id=id), depth, max_depth)
                 if result:
                     return result
 
-    @classmethod
-    def scan_folder(self,
-                    part_number: str | int,
+    @staticmethod
+    def scan_folder(part_number: str | int,
                     folder: Folder,
                     start_depth: int,
                     max_depth: int = 2) -> \
             tuple[str | None, str | int | None]:
         logger.info('Searching...')
-        result = self.scan_helper(part_number, folder, start_depth, max_depth)
+        result = SearchRepository.scan_helper(part_number, folder, start_depth, max_depth)
         if result:
             logger.info('Found ' + str(result) + '.')
             return result
@@ -927,7 +926,7 @@ def check_multiple_projects_for_titles_and_shortdescs(partno_list: list[str]):
     not_ready = []
     for part_no in partno_list:
         something_is_missing = False
-        proj_name, folder_id = SearchRepository().scan_folder(part_number=part_no,
+        proj_name, folder_id = SearchRepository.scan_folder(part_number=part_no,
                                                               folder=Folder(id=Constants.INDIGO_TOP_FOLDER.value),
                                                               start_depth=0, max_depth=5)
         proj = Project(proj_name, folder_id)
@@ -966,7 +965,6 @@ if __name__ == '__main__':
     project = Project()
     if project:
         project.complete_migration()
-
 
     # LOV.get_value_tree('FHPISUPPRESSTITLEPAGE')
 
