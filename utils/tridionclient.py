@@ -2,7 +2,7 @@ import base64
 import datetime
 import random
 import re
-from utils.mary_debug import logger
+from utils.mary_debug import logger, debugmethods
 from utils.mary_xml import XMLContent
 
 from lxml import etree
@@ -11,10 +11,30 @@ from zeep import Client, Transport, exceptions
 
 from utils.ishfields import IshField
 from utils.constants import Constants
+from functools import wraps
 
 """
 A Python client for SDL Tridion Docs. Created for HP Indigo by Dia Daur.
 """
+
+token = None
+
+
+def check_token(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        global token
+        if token is None:
+            token = Auth.get_token()
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def requires_token(cls):
+    for k, v in vars(cls).items():
+        if callable(v):
+            setattr(cls, k, check_token(v))
+    return cls
 
 
 class Metadata:
@@ -142,6 +162,7 @@ class Unpack:
         return etree.fromstring(xml.encode('utf-16'))
 
 
+@requires_token
 class Tag:
     hostname = Constants.HOSTNAME + 'MetadataBinding25.asmx?wsdl'
     service = Client(hostname, service_name='MetadataBinding25', port_name='MetadataBinding25Soap').service
@@ -151,7 +172,7 @@ class Tag:
         self.level = IshField.f.get(name.upper()).get('level').lower()
 
     def save_possible_values_to_file(self) -> None:
-        xml = Tag.service.RetrieveTagStructure(Auth.token,
+        xml = Tag.service.RetrieveTagStructure(token,
                                                psFieldName=self.name.upper(),
                                                psFieldLevel=self.level)['psXMLFieldTags']
         # with open('tag.xml', 'w', encoding='utf-8') as f:
@@ -168,28 +189,35 @@ class Tag:
                 dest.write(str(key).rstrip() + ',' + '\t"' + str(value).rstrip() + '"\n')
 
 
+@requires_token
 class LOV:
     hostname = Constants.HOSTNAME + 'ListOfValues25.asmx?wsdl'
     service = Client(hostname, service_name='ListOfValues25', port_name='ListOfValues25Soap').service
 
     @staticmethod
     def get_value_tree(dname):
-        xml = LOV.service.RetrieveValues(psAuthContext=Auth.token,
+        xml = LOV.service.RetrieveValues(psAuthContext=token,
                                          pasFilterLovIds=dname.upper(),
                                          peActivityFilter='None',
                                          )['psOutXMLLovValueList']
         return Unpack.to_tree(xml)
 
 
+@debugmethods
 class Auth:
-    auth = Client(Constants.HOSTNAME + 'Application25.asmx?wsdl',
+
+    service = Client(Constants.HOSTNAME + 'Application25.asmx?wsdl',
                   service_name='Application25',
                   port_name='Application25Soap',
                   transport=Transport(session=Session())).service
-    # client = Client(hostname + 'Application25.asmx?wsdl', wsse=UsernameToken(username, password))
-    response = auth.Login('InfoShareAuthor', Constants.USERNAME, Constants.PASSWORD)
-    token = response['psOutAuthContext']
-    logger.info('Login token: ' + token)
+
+    @staticmethod
+    def get_token():
+        # client = Client(hostname + 'Application25.asmx?wsdl', wsse=UsernameToken(username, password))
+        response = Auth.service.Login('InfoShareAuthor', Constants.USERNAME, Constants.PASSWORD)
+        token = response['psOutAuthContext']
+        logger.info('Login token: ' + token)
+        return token
 
     @staticmethod
     def get_dusername():
@@ -200,6 +228,8 @@ class Auth:
                 return ishlovvalue.attrib.get('ishref')
 
 
+@debugmethods
+@requires_token
 class DocumentObject:
     hostname = Constants.HOSTNAME + 'DocumentObj25.asmx?wsdl'
     service = Client(hostname, service_name='DocumentObj25', port_name='DocumentObj25Soap').service
@@ -215,18 +245,18 @@ class DocumentObject:
         return '<' + self.id + '>'
 
     def set_metadata(self, metadata: Metadata) -> None:
-        DocumentObject.service.SetMetadata(Auth.token, self.id, psVersion=1, psLanguage='en-US',
+        DocumentObject.service.SetMetadata(token, self.id, psVersion=1, psLanguage='en-US',
                                            psXMLMetadata=metadata.pack)
         logger.info('Set metadata:', metadata, 'for object:', self)
 
     def get_metadata(self, metadata: Metadata) -> Metadata:
         request: str = metadata.pack
-        xml = DocumentObject.service.GetMetaData(Auth.token, self.id, psVersion=1, psXMLRequestedMetaData=request)[
+        xml = DocumentObject.service.GetMetaData(token, self.id, psVersion=1, psXMLRequestedMetaData=request)[
             'psOutXMLObjList']
         return Unpack.to_metadata(xml)
 
     def get_folder(self) -> int | str:
-        meta: dict = DocumentObject.service.FolderLocation(Auth.token, self.id, peOutBaseFolder='Data')
+        meta: dict = DocumentObject.service.FolderLocation(token, self.id, peOutBaseFolder='Data')
         folder_id = meta['palOutFolderRefs']['long'][-1]
         return folder_id
 
@@ -270,7 +300,7 @@ class DocumentObject:
 
     def get_object_as_tree(self) -> etree.Element:
         logger.info('id: ' + str(self.id))
-        content = DocumentObject.service.GetObject(Auth.token, self.id, psVersion=1,
+        content = DocumentObject.service.GetObject(token, self.id, psVersion=1,
                                                    psLanguage='en-US')['psOutXMLObjList']
         root = Unpack.to_tree(content)
         return root
@@ -286,7 +316,7 @@ class DocumentObject:
 
     def delete(self) -> None:
         try:
-            DocumentObject.service.Delete(Auth.token, psLogicalId=self.id)
+            DocumentObject.service.Delete(token, psLogicalId=self.id)
         except exceptions.Fault:
             logger.error('Failed to delete object. Possible reasons:\n' +
                          '- Object is referenced by another object\n' +
@@ -296,6 +326,8 @@ class DocumentObject:
                          '- One of the languages is checked out, and you are no Administrator')
 
 
+@debugmethods
+@requires_token
 class PDFObject(DocumentObject):
 
     def __init__(self, name: str = None, folder_id: int | str = None, id: str = None):
@@ -315,7 +347,7 @@ class PDFObject(DocumentObject):
             IshField('fauthor', author),
         ).pack
 
-        response = DocumentObject.service.Create(Auth.token, self.folder_id, folder_type, psVersion='new',
+        response = DocumentObject.service.Create(token, self.folder_id, folder_type, psVersion='new',
                                                  psLanguage='en-US',
                                                  psXMLMetadata=request, psEdt='EDTPDF', pbData=pbdata)
         id = response['psLogicalId']
@@ -331,6 +363,7 @@ class PDFObject(DocumentObject):
         self.set_metadata(initial_metadata)
 
 
+@requires_token
 class Map(DocumentObject):
 
     def __init__(self, name: str = None, folder_id: str = None, id: str = None):
@@ -356,13 +389,13 @@ class Map(DocumentObject):
             IshField('fauthor', author),
             # IshField('fmastertype', 'Troubleshooting')
         ).pack
-        response = DocumentObject.service.Create(Auth.token, self.folder_id, folder_type, psVersion='new',
+        response = DocumentObject.service.Create(token, self.folder_id, folder_type, psVersion='new',
                                                  psLanguage='en-US',
                                                  psXMLMetadata=request, psEdt='EDTXML', pbData=pbdata)
         id = response['psLogicalId']
         return id
 
-
+@requires_token
 class LibVariable(DocumentObject):
 
     def __init__(self, name: str = None, folder_id: str = None, id: str = None, topic_guid: str = None):
@@ -397,19 +430,21 @@ class LibVariable(DocumentObject):
             IshField('flibrarytype', 'VLIBRARYTYPEVARIABLESOURCE')
         ).pack
 
-        response = DocumentObject.service.Create(Auth.token, plFolderRef=self.folder_id,
+        response = DocumentObject.service.Create(token, plFolderRef=self.folder_id,
                                                  psIshType=self.type, psLanguage='en-US',
                                                  psVersion='new', psXMLMetadata=request,
                                                  psEdt='EDTXML', pbData=pbdata)['psLogicalId']
         return response
 
 
+@requires_token
 class Topic(DocumentObject):
 
     def __init__(self, name: str = None, folder_id: int | str = None, id: str = None) -> None:
         super().__init__(name, folder_id, id)
 
 
+@requires_token
 class Publication:
     hostname = Constants.HOSTNAME + 'PublicationOutput25.asmx?wsdl'
     service = Client(hostname, service_name='PublicationOutput25', port_name='PublicationOutput25Soap').service
@@ -440,12 +475,12 @@ class Publication:
             IshField('fishpubsourcelanguages', 'VLANGUAGEEN'),
             IshField('fishrequiredresolutions', 'VRESLOW'),
         ).pack
-        pub_response = Publication.service.Create(Auth.token, self.folder_id, psVersion='new',
+        pub_response = Publication.service.Create(token, self.folder_id, psVersion='new',
                                                   psXMLMetadata=meta)
         return pub_response['psLogicalId']
 
     def get_hpi_pdf_metadata(self, metadata: Metadata) -> Metadata:
-        xml = Publication.service.GetMetaData(Auth.token, self.id, psVersion=1,
+        xml = Publication.service.GetMetaData(token, self.id, psVersion=1,
                                               psOutputFormat='HPI PDF',
                                               psLanguageCombination='en-US',
                                               psXMLRequestedMetaData=metadata.pack)['psOutXMLObjList']
@@ -459,12 +494,12 @@ class Publication:
             IshField('fishresources', ''),
             IshField('fhpidisclosurelevel', '')
         ).pack
-        xml = Publication.service.GetMetaData(Auth.token, self.id, psVersion=1, psXMLRequestedMetaData=meta)[
+        xml = Publication.service.GetMetaData(token, self.id, psVersion=1, psXMLRequestedMetaData=meta)[
             'psOutXMLObjList']
         return Unpack.to_metadata(xml)
 
     def set_metadata(self, metadata: Metadata) -> None:
-        Publication.service.SetMetadata(Auth.token, self.id, psVersion=1, psXMLMetadata=metadata.pack)
+        Publication.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=metadata.pack)
 
     def set_usergroup(self) -> None:
         meta: Metadata = Metadata(('fusergroup', 'Indigo'))
@@ -491,13 +526,13 @@ class Publication:
         meta: str = Metadata(
             IshField('fishresources', var_object.id)
         ).pack
-        Publication.service.SetMetadata(Auth.token, self.id, psVersion=1, psXMLMetadata=meta)
+        Publication.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta)
 
     def get_map(self):
         meta = Metadata(
             IshField('fishmasterref', '')
         ).pack
-        xml = Publication.service.GetMetaData(Auth.token, self.id, psVersion=1, psXMLRequestedMetaData=meta)[
+        xml = Publication.service.GetMetaData(token, self.id, psVersion=1, psXMLRequestedMetaData=meta)[
             'psOutXMLObjList']
         map_data = Unpack.to_metadata(xml).dict_form
         map_id = map_data.get('FISHMASTERREF').get('text')
@@ -512,17 +547,19 @@ class Publication:
             ('fhpinumberchapters', 'yes'),
             ('fhpisecondarycolor', 'blue.hp.2925c')
         ).pack
-        Publication.service.SetMetadata(Auth.token, self.id, psVersion=1, psXMLMetadata=meta,
+        Publication.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
                                         psOutputFormat='HPI PDF', psLanguageCombination='en-US')
 
     def publish_portals(self):
         meta = Metadata(('fhpipublishtoportals', 'yes')).pack
         # required_meta = Metadata(('fishoutputformatref', 'HPI PDF')).pack
-        Publication.service.SetMetadata(Auth.token, self.id, psVersion=1, psXMLMetadata=meta,
+        Publication.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
                                         # psXMLRequiredCurrentMetadata=required_meta,
                                         psOutputFormat='HPI PDF', psLanguageCombination='en-US')
 
 
+@debugmethods
+@requires_token
 class Folder:
     hostname = Constants.HOSTNAME + 'Folder25.asmx?wsdl'
     service = Client(hostname, service_name='Folder25', port_name='Folder25Soap').service
@@ -542,7 +579,7 @@ class Folder:
         self.metadata = metadata
 
         if name and type and parent_id and not id:
-            new_folder_response = Folder.service.Create(Auth.token, self.parent_id, self.type, self.name,
+            new_folder_response = Folder.service.Create(token, self.parent_id, self.type, self.name,
                                                         plOutNewFolderRef=str(random.randrange(2 ^ 32)))
             self.id = new_folder_response['plOutNewFolderRef']
             logger.debug('Created folder:', self.id, self.name)
@@ -554,7 +591,7 @@ class Folder:
         return 'Folder: (' + str(self.id) + ') ' + str(self.name)
 
     def get_location(self) -> list[str | int]:
-        response = Folder.service.FolderLocation(Auth.token, plFolderRef=self.id, peOutBaseFolder='Data')
+        response = Folder.service.FolderLocation(token, plFolderRef=self.id, peOutBaseFolder='Data')
         folder_location = response['palOutFolderRefs']['long']
         location = [str(item) for item in folder_location]
         return location
@@ -565,7 +602,7 @@ class Folder:
         """
         logger.debug('Getting metadata...')
         meta: str = Metadata(('fname', ''), ('fishfolderpath', ''), ('fdocumenttype', '')).pack
-        xml = Folder.service.GetMetaDataByIshFolderRef(Auth.token, plFolderRef=self.id,
+        xml = Folder.service.GetMetaDataByIshFolderRef(token, plFolderRef=self.id,
                                                        psXMLRequestedMetaData=meta)['psOutXMLFolderList']
         if search_mode == 'ishfolders':
             return Unpack.to_metadata(xml, 'ishfolders')
@@ -592,23 +629,23 @@ class Folder:
         'ishobjects': list of guids ['xxxx', 'yyyy']
         """
         if search_mode == 'ishfolders':
-            xml = Folder.service.GetSubFoldersByIshFolderRef(Auth.token, plFolderRef=self.id)['psOutXMLFolderList']
+            xml = Folder.service.GetSubFoldersByIshFolderRef(token, plFolderRef=self.id)['psOutXMLFolderList']
             ishfolders: list[tuple[Metadata, str | int]] = Unpack.to_metadata(xml, 'ishfolders')
             return ishfolders
         elif search_mode == 'ishobjects':
-            xml = Folder.service.GetContents(Auth.token, plFolderRef=self.id)['psOutXMLObjList']
+            xml = Folder.service.GetContents(token, plFolderRef=self.id)['psOutXMLObjList']
             ishobjects: list[str] = Unpack.to_metadata(xml, 'ishobjects')
             return ishobjects
         elif not search_mode:
             if self.get_type == 'None' or self.get_type == 'ISHNone':  # folder with folders
-                xml = Folder.service.GetSubFoldersByIshFolderRef(Auth.token, plFolderRef=self.id)['psOutXMLFolderList']
+                xml = Folder.service.GetSubFoldersByIshFolderRef(token, plFolderRef=self.id)['psOutXMLFolderList']
             else:
-                xml = Folder.service.GetContents(Auth.token, plFolderRef=self.id)['psOutXMLObjList']
+                xml = Folder.service.GetContents(token, plFolderRef=self.id)['psOutXMLObjList']
             metadata: Metadata = Unpack.to_metadata(xml)
             return metadata
 
     def get_subfolder_ids(self) -> list[tuple[Metadata, str | int]]:
-        xml = Folder.service.GetSubFoldersByIshFolderRef(Auth.token, plFolderRef=self.id)['psOutXMLFolderList']
+        xml = Folder.service.GetSubFoldersByIshFolderRef(token, plFolderRef=self.id)['psOutXMLFolderList']
         return Unpack.subfolder_ids(xml)
 
     def locate_object_by_name_start(self, name_start: str) -> tuple[str, str]:
@@ -621,7 +658,7 @@ class Folder:
 
         def get_obj_name_from_guid(guid: str) -> str:
             req_metadata: str = Metadata(('ftitle', '')).pack
-            xml = DocumentObject.service.GetMetaData(Auth.token, guid,
+            xml = DocumentObject.service.GetMetaData(token, guid,
                                                      psXMLRequestedMetaData=req_metadata)['psOutXMLObjList']
             xml = Unpack.wrap(xml)
             obj_metadata: Metadata = Unpack.to_metadata(xml)
@@ -660,6 +697,8 @@ class Folder:
             obj.set_metadata_for_dynamic_delivery(**kwargs)
 
 
+@debugmethods
+@requires_token
 class Project:
     folder_names = {'images': ('ISHIllustration', 'Image'),
                     'maps': ('ISHMasterDoc', 'Map'),
@@ -822,6 +861,7 @@ class Project:
         return msg
 
 
+@debugmethods
 class SearchRepository:
 
     @classmethod
@@ -880,7 +920,7 @@ class SearchRepository:
             logger.info('Not found. Try a different scope')
 
 
-
+@check_token
 def check_multiple_projects_for_titles_and_shortdescs(partno_list: list[str]):
     warnings = []
     not_ready = []
