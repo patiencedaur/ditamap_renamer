@@ -52,7 +52,10 @@ class LocalProjectFile:
         self.basename, self.ext = os.path.splitext(self.name)
         self.ditamap: LocalMap | None = None  # is assigned during map initialization
 
-        root = etree.parse(self.path).getroot()
+        try:
+            root = etree.parse(self.path).getroot()
+        except etree.XMLSyntaxError as e:
+            raise e
         header = self.get_xml_file_header()
         if header:
             self.content = XMLContent(root, header)
