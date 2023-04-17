@@ -4,3 +4,4 @@
 /venv/
 /misc/
 /.idea/
+/logs/*.log

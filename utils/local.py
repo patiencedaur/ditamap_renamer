@@ -29,6 +29,7 @@ def file_rename(old_path: str, new_path: str) -> None:
         return
     if old_path == new_path:
         logger.error('Old path equals to new path: ' + old_path)
+        raise FileExistsError
     else:
         os.rename(old_path, new_path)
         logger.info('renamed ' + old_path + ' to ' + new_path)
@@ -37,7 +38,7 @@ def file_rename(old_path: str, new_path: str) -> None:
 def file_delete(path: str) -> None:
     if not os.path.exists(path):
         logger.error('No file to delete: ' + path)
-        return
+        raise FileNotFoundError
     os.remove(path)
 
 
@@ -54,8 +55,9 @@ class LocalProjectFile:
 
         try:
             root = etree.parse(self.path).getroot()
-        except etree.XMLSyntaxError as e:
-            raise e
+        except Exception as e:
+            logger.error(e)
+            raise(e)
         header = self.get_xml_file_header()
         if header:
             self.content = XMLContent(root, header)
@@ -92,7 +94,7 @@ class LocalProjectFile:
     def get_xml_file_header(self) -> str | None:
         if not self.path:
             logger.error('Path', self.path, 'does not exist')
-            return
+            raise FileNotFoundError
         with open(self.path, 'r', encoding='utf-8') as f:
             declaration = r'(<\?xml version="1.0" encoding="UTF-8"\?>\n)(<!DOCTYPE.*?>\n)?'
             first_four_lines = ''
@@ -164,8 +166,9 @@ class LocalMap(LocalProjectFile):
                 content_types[ext].append(fl)
         if '3sish' in content_types.keys():
             if len(content_types['dita']) != len(content_types['3sish']):
-                logger.critical('Some DITA topics are missing their ISH files, or vice versa.',
-                                'Please check the contents of the folder:', self.folder)
+                logger.critical('Some DITA topics are missing their ISH files, or vice versa. ' +
+                                'Please check the contents of the folder: ' + self.folder)
+                raise FileNotFoundError
             else:
                 logger.info('This project is derived from a Cheetah file')
                 return 'cheetah'
@@ -185,16 +188,16 @@ class LocalMap(LocalProjectFile):
                     href = os.path.basename(self.image_folder) + '/' + file
                 else:
                     href = file
-                print(href)
                 image_list.append(Image(href, self))
         return set(image_list)
 
     def get_topic_from_topicref(self, topicref: etree.Element):
-        topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
-        if not os.path.exists(topic_path):
-            logger.critical('Cannot create LocalProjectFile from path %s. Aborting.' % topic_path)
-        topic_content = XMLContent(etree.parse(topic_path).getroot())
-
+        try:
+            topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
+            topic_content = XMLContent(etree.parse(topic_path).getroot())
+        except Exception as e:
+            logger.error(e)
+            raise e
         oc: str = topic_content.root.attrib.get('outputclass')
         children = topicref.findall('topicref')
         if oc is None:
@@ -214,8 +217,9 @@ class LocalMap(LocalProjectFile):
         if self.source == 'word':
             try:
                 topic.cast()
-            except:
-                logger.debug('Cannot cast ' + str(topic) + ' to ' + str(topic.__class__))
+            except Exception as e:
+                logger.debug('Cannot cast ' + str(topic) + ' to ' + str(topic.__class__) + \
+                             ':\n' + e)
 
         if self.source == 'cheetah':
             topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
@@ -321,6 +325,7 @@ class LocalMap(LocalProjectFile):
             new_path: str = os.path.join(self.image_folder, new_name)
             if not os.path.exists(current_path) or os.path.exists(new_path):
                 logger.error('Current path does not exist or new path exists')
+                raise FileExistsError
             logger.debug('New path: ' + new_path)
             file_rename(current_path, new_path)
             # rename hrefs in topics
@@ -446,7 +451,7 @@ class LocalTopic(LocalProjectFile):
                           self.content.title_tag.text).replace('___',
                                                                '_').replace('__',
                                                                             '_').replace('_the_', '_')
-        new_name = re.sub(r'\W+', '', new_name)
+        new_name = re.sub(r'\W+', '', new_name, flags=re.ASCII)
         if new_name.endswith('_'):
             new_name = new_name[:-1]
         if new_name[1] == '_':
@@ -468,7 +473,7 @@ class LocalTopic(LocalProjectFile):
         self.name = new_name + self.ext
         self.path = os.path.join(self.folder, self.name)
         if os.path.exists(self.path):
-            logger.warning('New path already exists:', self.path)
+            logger.warning('New path already exists: ' + self.path)
         else:
             file_rename(old_path, self.path)
 
@@ -608,6 +613,7 @@ class LocalISHFile(LocalProjectFile):
     def check_ishobject(self):
         if self.content.root.tag != 'ishobject':
             logger.critical('Malformed ISH file, no ishobject tag:', self.path)
+            raise etree.XMLSyntaxError
 
     def rename_with_path(self, old_path, new_name):
         self.content.fattribute('FTITLE', 'set', new_name)
