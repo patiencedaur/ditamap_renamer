@@ -5,7 +5,7 @@ from lxml import etree
 import re
 from utils.constants import Constants
 from shutil import copy2
-from utils.mary_debug import logger
+from utils.mary_debug import logger, show_progressbar
 
 prefixes: dict[str, str] = {
     # A prefix is an identifying letter that gets prepended to the filename, according to the style guide.
@@ -178,7 +178,7 @@ class LocalMap(LocalProjectFile):
 
     def get_images(self) -> set['Image']:
         """
-        Run this before get_structure, because topic in pairs
+        Run this before get_topics, because topics
         have their own images derived from the map set of images.
         """
         image_list = []
@@ -219,7 +219,7 @@ class LocalMap(LocalProjectFile):
                 topic.cast()
             except Exception as e:
                 logger.debug('Cannot cast ' + str(topic) + ' to ' + str(topic.__class__) + \
-                             ':\n' + e)
+                             ':\n' + str(e))
 
         if self.source == 'cheetah':
             topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
@@ -227,6 +227,7 @@ class LocalMap(LocalProjectFile):
             topic.ish = LocalISHFile(ish_path, self)
         return topic
 
+    @show_progressbar
     def get_topics(self) -> list['LocalTopic']:
         topics = []
         for topicref in self.content.root.iter('topicref'):

@@ -1,9 +1,11 @@
-from tkinter import Toplevel, Button, Text, Label
+from tkinter import Toplevel, Tk, Button, Text, Label
+from tkinter.ttk import Progressbar
 from subprocess import Popen, PIPE
 from functools import wraps
 import logging
 from utils.constants import Constants
 from sys import exit
+from queue import Queue
 
 
 """
@@ -15,6 +17,7 @@ class ErrorDialog(Toplevel):
 
     def __init__(self, msg):
         super().__init__()
+        self.focus_force()
         self.title('Error')
         self.msg = msg
 
@@ -30,6 +33,8 @@ class ErrorDialog(Toplevel):
 
         close_btn = Button(self, command=self.copy_and_close, text='Copy and close')
         close_btn.grid(row=1, column=1, **padding, sticky='nsew')
+
+        self.protocol('WM_DELETE_WINDOW', exit)
 
     def copy_and_close(self):
         sp = Popen(['clip'], stdin=PIPE, stdout=PIPE, encoding='utf-8') # Windows only
@@ -68,6 +73,63 @@ class MaryLogger(logging.Logger):
 
 logging.setLoggerClass(MaryLogger)
 logger = logging.getLogger(__name__)
+
+
+"""
+Threading and progress bar for long-running functions
+"""
+
+q = Queue(maxsize=1)
+returned_values = {}
+
+def run_long_task():
+    while True:
+        task = q.get()
+        if task is None:
+            return
+        func = task.get('func')
+        kwargs = task.get('kwargs')
+        returned_values[func.__name__] = func(**kwargs)
+
+class MaryProgressBar(Toplevel):
+    def __init__(self):
+        super().__init__(relief='raised')
+        self.title('Please wait...')
+        x_pos = int(self.winfo_screenwidth() / 2)
+        y_pos = int(self.winfo_screenheight() / 2)
+        self.geometry(f'330x80+{x_pos}+{y_pos}')
+        self.attributes('-toolwindow', True)
+        self.protocol("WM_DELETE_WINDOW", None)
+        # self.overrideredirect(True)
+        # Label(self, text='Please wait...').pack()
+        self.pb = Progressbar(self, orient='horizontal', mode='indeterminate', length='300')
+        self.pb.pack(padx=15, pady=15)
+        self.focus_force()
+
+    def start(self):
+        self.after(50, self.pb.start)
+
+def show_progressbar(func):
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        pb = MaryProgressBar()
+        pb.start()
+        try:
+            retvalue = func(*args, **kwargs)
+            return retvalue
+        except:
+            pb.destroy()
+
+    return wrapper
+
+
+# start thread with long function. add thread to threads
+# if result, put it in queue
+# check if there is something in queue every 100 ms, if not, check again
+# check if thread is-alive after 200 ms, if not, check again
+# kill all threads after app exit
+
 
 
 """

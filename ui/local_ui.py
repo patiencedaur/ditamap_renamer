@@ -5,6 +5,7 @@ from tkinter import ttk
 from subprocess import Popen
 from utils.local import *
 from utils.rename_flare_images import RenameImageFile
+from utils.mary_debug import q, returned_values
 
 padding = Constants.PADDING.value
 
@@ -24,14 +25,14 @@ class LocalTab(PanedWindow):
 class LocalMapProcessing(ttk.LabelFrame):
 
     def __init__(self, master) -> None:
-        super().__init__(master, text='Local DITA project processing')
+        super().__init__(master, text='Process a local DITA project')
         self.ditamap: LocalMap | None = None
         self.ditamap_var = StringVar()  # something used by Tkinter, here acts as a buffer for ditamap path
         self.ditamap_var.trace('w', self.turn_on_buttons)
         self.padding = Constants.PADDING.value
         self.no_images = True
 
-        button_file = Button(self, text='Select map...', command=self.get_ditamap_name)
+        button_file = Button(self, text='Select map...', command=self.call_select_map)
         button_file.grid(row=0, column=0, sticky='nw', **self.padding)
 
         self.target_file = Entry(self, textvariable=self.ditamap_var, width=60, bd=4, justify='left')
@@ -61,7 +62,7 @@ class LocalMapProcessing(ttk.LabelFrame):
                                               state='disabled')
         self.button_edit_image_names.grid(row=2, column=2, sticky='ew', **self.padding)
 
-    def get_ditamap_name(self):
+    def call_select_map(self):
         """
         Show a file selection dialog. Remember the file that was selected.
         """
@@ -69,11 +70,24 @@ class LocalMapProcessing(ttk.LabelFrame):
         if file:
             self.ditamap_var.set(os.path.abspath(file))
             logger.debug('ditamap_var: ' + self.ditamap_var.get())
-            self.ditamap = LocalMap(self.ditamap_var.get())
+            self.after(100, lambda: self.enqueue_map(self.ditamap_var.get()))
+            self.ditamap = self.after(200, self.get_map)
+
+    def enqueue_map(self, map_path):
+        q.put({'func': LocalMap, 'kwargs': {'file_path': map_path}})
+
+    def get_map(self):
+        try:
+            ditamap = returned_values.get('LocalMap')
+        except KeyError:
+            self.after(200, self.get_map)
+            return
+        if ditamap is not None:
             logger.debug(self.ditamap.image_folder)
             if len(self.ditamap.images) > 0:
                 self.no_images = False
             self.turn_on_buttons()
+            return ditamap
 
     def turn_on_buttons(self, *args):
         """

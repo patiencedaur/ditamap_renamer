@@ -1,5 +1,4 @@
-from tkinter import ttk, Tk, Frame, Checkbutton, Text, Scrollbar
-
+from tkinter import ttk, Tk
 from ui.local_ui import LocalTab
 from ui.tridionclient_ui import ServerActionsTab
 from utils.constants import Constants
