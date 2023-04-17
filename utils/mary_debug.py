@@ -82,7 +82,12 @@ Threading and progress bar for long-running functions
 q = Queue(maxsize=1)
 returned_values = {}
 
+
 def run_long_task():
+    """
+    Get a task from the queue and run it in a separate thread.
+    Store the return value in a global dictionary. Later it can be accessed from the Tkinter UI.
+    """
     while True:
         task = q.get()
         if task is None:
@@ -91,7 +96,9 @@ def run_long_task():
         kwargs = task.get('kwargs')
         returned_values[func.__name__] = func(**kwargs)
 
+
 class MaryProgressBar(Toplevel):
+
     def __init__(self):
         super().__init__(relief='raised')
         self.title('Please wait...')
@@ -107,9 +114,20 @@ class MaryProgressBar(Toplevel):
         self.focus_force()
 
     def start(self):
+        """
+        Jump in the Tkinter event loop.
+        """
         self.after(50, self.pb.start)
 
+
 def show_progressbar(func):
+    """
+    This decorator gets applied to functions run by run_long_task() in a separate thread.
+    The function return is stored in a global dictionary, so it later can be accessed
+    from the Tkinter UI.
+    Tkinter UI does not allow threads within itself and must function independently
+    of the backend.
+    """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -122,14 +140,6 @@ def show_progressbar(func):
             pb.destroy()
 
     return wrapper
-
-
-# start thread with long function. add thread to threads
-# if result, put it in queue
-# check if there is something in queue every 100 ms, if not, check again
-# check if thread is-alive after 200 ms, if not, check again
-# kill all threads after app exit
-
 
 
 """

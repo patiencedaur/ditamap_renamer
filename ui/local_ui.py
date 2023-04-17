@@ -74,9 +74,20 @@ class LocalMapProcessing(ttk.LabelFrame):
             self.ditamap = self.after(200, self.get_map)
 
     def enqueue_map(self, map_path):
+        """
+        Puts a LocalMap init call in the queue.
+        Tkinter UI and the backend have to work separately, because
+        the UI gets updated all the time by using mainloop() and therefore
+        doesn't allow running threads inside it.
+        """
         q.put({'func': LocalMap, 'kwargs': {'file_path': map_path}})
 
     def get_map(self):
+        """
+        Retrieve the map object from a global dictionary that stores
+        return values of functions called by mary_debug.run_long_task()
+        in a separate thread.
+        """
         try:
             ditamap = returned_values.get('LocalMap')
         except KeyError:

@@ -33,7 +33,7 @@ class NarrowDownLocation(LabelFrame):
 
     def get_location_folder(self):
         part_type = self.part_type.get()
-        logger.debug(part_type)
+        logger.debug('part type: ' + part_type)
         if part_type:
             folder = SearchRepository.get_location(part_type)
             return folder
@@ -107,7 +107,7 @@ class ServerActionsTab(Frame):
         self.buttons = [
             button_cheetah_migration,
             button_check_titles_and_sd,
-            button_manage_pub,
+            # button_manage_pub,
             # button_check_tags,
             # button_hpi_pdf
         ]
