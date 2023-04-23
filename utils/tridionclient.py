@@ -246,10 +246,10 @@ class DocumentObject:
     def __repr__(self) -> str:
         return '<' + self.id + '>'
 
-    def set_metadata(self, metadata: Metadata) -> None:
+    def set_metadata(self, metadata: Metadata, level='logical') -> None:
         self.service.SetMetadata(token, self.id, psVersion=1, psLanguage='en-US',
                                  psXMLMetadata=metadata.pack)
-        logger.info('Set metadata:', metadata, 'for object:', self)
+        logger.info('Set metadata: ' + str(metadata) + ' for object: ' + str(self))
 
     def get_metadata(self, metadata: Metadata) -> Metadata:
         request: str = metadata.pack
@@ -279,14 +279,16 @@ class DocumentObject:
 
         logger.info('Filled mandatory metadata for ' + str(self))
 
-    def get_current_dynamic_delivery_metadata(self) -> tuple[str | int, str | int, str | int]:
+    def get_current_dynamic_delivery_metadata(self) -> tuple:
         mandatory_metadata: Metadata = Metadata(('fhpiproduct', ''), ('fhpicustomersupportstories', ''),
                                                 ('fhpiregion', ''))
         get_meta: Metadata = self.get_metadata(mandatory_metadata)
         fhpiproduct: dict[str, str] = get_meta.dict_form.get('FHPIPRODUCT')
         fhpicss: dict[str, str] = get_meta.dict_form.get('FHPICUSTOMERSUPPORTSTORIES')
         fhpiregion: dict[str, str] = get_meta.dict_form.get('FHPIREGION')
-        return fhpiproduct.get('text'), fhpicss.get('text'), fhpiregion.get('text')
+        current_dd_meta = [field.get('text') if field is not None else ''
+                           for field in (fhpiproduct, fhpicss, fhpiregion)]
+        return tuple(current_dd_meta)
 
     def apply_dynamic_delivery_metadata_from_source(self,
                                                     source_metadata: tuple[str | int, str | int, str | int]) -> None:
@@ -340,7 +342,7 @@ class PDFObject(DocumentObject):
 
     def create(self):
         folder_type = 'ISHTemplate'
-        with open('../templates/pdf_template.pdf', 'rb') as template:
+        with open('templates/pdf_template.pdf', 'rb') as template:
             pbdata = template.read()
         author = Auth.get_dusername()
         request: str = Metadata(
@@ -357,11 +359,14 @@ class PDFObject(DocumentObject):
 
     def fill_initial_metadata(self):
         initial_metadata = Metadata(
-            IshField('FHPITOPICTITLE', self.name),
+            # IshField('FHPITOPICTITLE', self.name),
             IshField('FHPIDISCLOSURELEVEL', '287477763180518087286275037723076'),
             IshField('FHPIPRODUCT', '18576095'),
             IshField('FHPIREGION', '205101142445494286415257'),
         )
+        if hasattr(self, 'name'):
+            initial_metadata += IshField('FHPITOPICTITLE', self.name)
+
         self.set_metadata(initial_metadata)
 
 
@@ -824,6 +829,8 @@ class Project:
         except AttributeError:
             logger.info('Library variable not found, continuing...')
         logger.info('Migration completed.')
+        from tkinter import messagebox
+        messagebox.showinfo('Done', 'Migration completed.')
 
     def create_folder_structure(self) -> dict[str, Folder]:
         for folder_name in Project.folder_names.keys():

@@ -35,6 +35,8 @@ class ErrorDialog(Toplevel):
         close_btn.grid(row=1, column=1, **padding, sticky='nsew')
 
         self.protocol('WM_DELETE_WINDOW', exit)
+        self.focus_force()
+        self.grab_set()
 
     def copy_and_close(self):
         sp = Popen(['clip'], stdin=PIPE, stdout=PIPE, encoding='utf-8') # Windows only
@@ -117,7 +119,12 @@ class MaryProgressBar(Toplevel):
         """
         Jump in the Tkinter event loop.
         """
+        self.grab_set()
         self.after(50, self.pb.start)
+
+    def stopandhide(self):
+        self.grab_release()
+        self.destroy()
 
 
 def show_progressbar(func):
@@ -133,11 +140,10 @@ def show_progressbar(func):
     def wrapper(*args, **kwargs):
         pb = MaryProgressBar()
         pb.start()
-        try:
-            retvalue = func(*args, **kwargs)
-            return retvalue
-        except:
-            pb.destroy()
+
+        retvalue = func(*args, **kwargs)
+        pb.stopandhide()
+        return retvalue
 
     return wrapper
 

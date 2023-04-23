@@ -124,6 +124,10 @@ class LocalProjectFile:
             f.write(self.content.header + file_contents)
 
 
+def LocalMapFactory(file_path):
+    return LocalMap(file_path)
+
+
 class LocalMap(LocalProjectFile):
 
     def __init__(self, file_path):

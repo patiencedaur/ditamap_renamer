@@ -6,6 +6,7 @@ from subprocess import Popen
 from utils.local import *
 from utils.rename_flare_images import RenameImageFile
 from utils.mary_debug import q, returned_values
+from time import sleep
 
 padding = Constants.PADDING.value
 
@@ -70,8 +71,8 @@ class LocalMapProcessing(ttk.LabelFrame):
         if file:
             self.ditamap_var.set(os.path.abspath(file))
             logger.debug('ditamap_var: ' + self.ditamap_var.get())
-            self.after(100, lambda: self.enqueue_map(self.ditamap_var.get()))
-            self.ditamap = self.after(200, self.get_map)
+            self.enqueue_map(self.ditamap_var.get())
+            self.ditamap = self.get_map()
 
     def enqueue_map(self, map_path):
         """
@@ -88,17 +89,15 @@ class LocalMapProcessing(ttk.LabelFrame):
         return values of functions called by mary_debug.run_long_task()
         in a separate thread.
         """
-        try:
-            ditamap = returned_values.get('LocalMap')
-        except KeyError:
-            self.after(200, self.get_map)
-            return
-        if ditamap is not None:
-            logger.debug(self.ditamap.image_folder)
-            if len(self.ditamap.images) > 0:
-                self.no_images = False
-            self.turn_on_buttons()
-            return ditamap
+        ditamap = returned_values.get('LocalMap')
+        if ditamap is None:
+            sleep(200 * 0.001)
+            self.get_map()
+        logger.debug(self.ditamap.image_folder)
+        if len(self.ditamap.images) > 0:
+            self.no_images = False
+        self.turn_on_buttons()
+        return ditamap
 
     def turn_on_buttons(self, *args):
         """
@@ -298,7 +297,7 @@ class MissingItemsWindow(Tk):
             has_shortdesc = '-' if content.shortdesc_missing() else content.shortdesc_tag.text
             has_draft_comments = 'Yes' if len(content.draft_comments) > 0 else ''
             topic_id_in_table = self.table.insert(parent_id, END, text=topic.name, open=False, tags=tags,
-                                         values=(has_title, has_shortdesc, has_draft_comments))
+                                                  values=(has_title, has_shortdesc, has_draft_comments))
             if len(topic.children) > 0:
                 for child in topic.children:
                     create_table_row(child, topic_id_in_table)
