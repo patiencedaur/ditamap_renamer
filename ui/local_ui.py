@@ -72,7 +72,15 @@ class LocalMapProcessing(ttk.LabelFrame):
         Show a file selection dialog. Remember the file that was selected.
         """
         file = filedialog.askopenfilename(filetypes=[('DITA maps', '.ditamap')])
-        if file:
+        if not file:
+            return
+        do_process_map = messagebox.askokcancel('Map processing',
+                               'The map ' + file + ' will be pre-processed.\n' +
+                               'If the project was derived from a Word file, ' +
+                               'the basic formatting will be added, ' +
+                               'but you will still need to clean up the topics.\n' +
+                               'Do you want to continue?', icon=messagebox.WARNING)
+        if do_process_map:
             self.ditamap_var.set(os.path.abspath(file))
             logger.debug('ditamap_var: ' + self.ditamap_var.get())
             self.pb.start()
