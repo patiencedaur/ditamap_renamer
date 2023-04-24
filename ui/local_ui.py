@@ -3,10 +3,11 @@ from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import ttk
 from subprocess import Popen
-from tools.local import *
-from tools.rename_flare_images import RenameImageFile
+from core.local import *
+from ui.utils import MaryProgressBar
+from core.rename_flare_images import RenameImageFile
 from queue import Queue, Empty
-from tools.mary_debug import ThreadedLocalMapFactory
+from core.threaded import ThreadedLocalMapFactory, ThreadedLocalTopicRenamer
 
 padding = Constants.PADDING.value
 
@@ -34,6 +35,7 @@ class LocalMapProcessing(ttk.LabelFrame):
         self.no_images = True
 
         self.q = Queue()
+        self.pb = MaryProgressBar()
 
         button_file = Button(self, text='Select map...', command=self.call_select_map)
         button_file.grid(row=0, column=0, sticky='nw', **self.padding)
@@ -73,7 +75,6 @@ class LocalMapProcessing(ttk.LabelFrame):
         if file:
             self.ditamap_var.set(os.path.abspath(file))
             logger.debug('ditamap_var: ' + self.ditamap_var.get())
-            self.pb = MaryProgressBar()
             self.pb.start()
             t = ThreadedLocalMapFactory(os.path.abspath(file), self.q)
             t.start()
@@ -114,9 +115,19 @@ class LocalMapProcessing(ttk.LabelFrame):
 
     def call_rename_topics(self, *args):
         if self.ditamap:
-            number_renamed_topics = self.ditamap.rename_topics()
+            self.pb.start()
+            t = ThreadedLocalTopicRenamer(self.ditamap, self.q)
+            t.start()
+            self.after(100, self.check_queue_for_renamed_topics)
+
+    def check_queue_for_renamed_topics(self):
+        try:
+            number_renamed_topics = self.q.get_nowait()
+            self.pb.stopandhide()
             rename_msg = 'Processed %s topics in map folder.' % str(number_renamed_topics)
             messagebox.showinfo(title='Renamed files', message=rename_msg)
+        except Empty:
+            self.after(100, self.check_queue_for_renamed_topics)
 
     def call_mass_edit(self, *args):
         if self.ditamap:

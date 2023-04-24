@@ -1,11 +1,11 @@
 from copy import deepcopy
 import os
-from tools.mary_xml import XMLContent, TextElement
+from core.mary_xml import XMLContent, TextElement
 from lxml import etree
 import re
-from tools.constants import Constants
+from core.constants import Constants
 from shutil import copy2
-from tools.mary_debug import logger, debugmethods
+from core.mary_debug import logger, debugmethods
 
 prefixes: dict[str, str] = {
     # A prefix is an identifying letter that gets prepended to the filename, according to the style guide.
@@ -122,10 +122,6 @@ class LocalProjectFile:
             file_contents = f.read()
             f.seek(0, 0)
             f.write(self.content.header + file_contents)
-
-
-def LocalMapFactory(file_path):
-    return LocalMap(file_path)
 
 
 @debugmethods

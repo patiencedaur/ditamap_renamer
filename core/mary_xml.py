@@ -1,8 +1,8 @@
-from tools.mary_debug import logger, debugmethods
+from core.mary_debug import logger, debugmethods
 from copy import deepcopy
 from re import search
 from lxml import etree
-from tools.constants import Constants
+from core.constants import Constants
 
 
 def TextElement(tag: str, text: str, *args, **kwargs) -> etree.Element:
@@ -108,8 +108,10 @@ class XMLContent:
         for link in self.local_links:
             link_href = link.attrib.get('href')
             if old_name in link_href:
-                logger.info("'" + self.title_tag.text + "'", 'has old link to', new_name, '(%s)' % link_href)
+                logger.info("'" + self.title_tag.text + "'" +
+                            ' has old link to ' + new_name + ' (%s)' % link_href)
                 new_name = link_href.replace(old_name, new_name)
+                logger.info('Updated link href: ' + new_name + '\n')
                 logger.info('Updated link href: ' + new_name + '\n')
                 link.set('href', new_name)
 

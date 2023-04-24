@@ -3,7 +3,7 @@ from lxml import etree
 from tkinter import *
 from tkinter import filedialog
 from tkinter import messagebox
-from tools.constants import Constants
+from core.constants import Constants
 
 padding = Constants.PADDING.value
 

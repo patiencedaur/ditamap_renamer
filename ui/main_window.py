@@ -1,7 +1,7 @@
 from tkinter import ttk, Tk
 from ui.local_ui import LocalTab
 from ui.tridionclient_ui import ServerActionsTab
-from utils.constants import Constants
+from core.constants import Constants
 
 padding = Constants.PADDING.value
 

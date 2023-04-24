@@ -1,11 +1,15 @@
+from queue import Queue, Empty
 from tkinter import Button, Radiobutton, Label, LabelFrame, Frame, StringVar, W, EW, NSEW, NORMAL, DISABLED, Toplevel
 from tkinter import Entry
 from tkinter import messagebox
 from tkinter.ttk import Treeview
-from utils.constants import Constants
-from utils.mary_debug import logger, debugmethods
-from utils.mary_xml import XMLContent
-from utils.tridionclient import SearchRepository, Project
+
+from core.constants import Constants
+from core.mary_debug import logger, debugmethods
+from core.mary_xml import XMLContent
+from core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedTitleAndDescriptionChecker
+from core.tridionclient import SearchRepository, Project
+from ui.utils import MaryProgressBar
 
 padding = Constants.PADDING.value
 
@@ -28,6 +32,9 @@ class NarrowDownLocation(LabelFrame):
             btn.grid(row=0, column=buttons.index(button), sticky=EW, **padding)
         self.part_type.set('common in presses')
 
+        self.q = Queue()
+        self.pb = MaryProgressBar()
+
     def call_get_location_folder(self):
         self.after(100, self.get_location_folder)
 
@@ -47,6 +54,9 @@ class SearchPartNumber(Frame):
         self.p_name = StringVar()
         self.p_id = StringVar()
 
+        self.q = Queue()
+        self.pb = MaryProgressBar()
+
         description = Label(self, text='Search project by part number:', anchor=W)
         description.grid(row=0, column=0, sticky=EW)
 
@@ -54,7 +64,7 @@ class SearchPartNumber(Frame):
         query_field.grid(row=1, column=0, columnspan=4, **padding, sticky=EW)
 
         search_button = Button(self, text='Search',
-                               command=lambda: self.after(400, self.find_project))
+                               command=self.find_project)
         search_button.grid(row=1, column=3, **padding, sticky=EW)
 
         self.select_part_type = NarrowDownLocation(self)
@@ -62,18 +72,30 @@ class SearchPartNumber(Frame):
 
     def find_project(self):
         folder = self.select_part_type.get_location_folder()
+
         part_no = self.search_query.get()
         logger.debug('search query: ' + part_no)
         if folder and part_no:
-            result = SearchRepository.scan_folder(part_no, folder, 0)
+            self.pb.start()
+            t = ThreadedRepositorySearch(part_no, folder, self.q)
+            t.start()
+            self.after(300, self.check_queue_for_search_result)
+        else:
+            messagebox.showinfo('No project', 'Please type a part number in the search box.')
+
+    def check_queue_for_search_result(self):
+        try:
+            result = self.q.get_nowait()
             if result:
                 self.p_name.set(result[0])
                 self.p_id.set(result[1])
+                self.pb.stopandhide()
                 messagebox.showinfo('Found project', 'Found ' + result[0] + '.')
             else:
+                self.pb.stopandhide()
                 messagebox.showinfo('Not found', 'Project not found. Try a different scope.')
-        else:
-            messagebox.showinfo('No project', 'Please type a part number in the search box.')
+        except Empty:
+            self.after(100, self.check_queue_for_search_result)
 
 
 @debugmethods
@@ -82,6 +104,9 @@ class ServerActionsTab(Frame):
     def __init__(self, master):
         super().__init__(master)
         self.project = None
+
+        self.q = Queue()
+        self.pb = MaryProgressBar()
 
         search = SearchPartNumber(self)
         search.grid(row=0, column=0, columnspan=3, sticky=EW)
@@ -125,16 +150,36 @@ class ServerActionsTab(Frame):
 
     def call_complete_migration(self):
         if self.project:
-            self.after(100, self.project.complete_migration)
+            self.pb.start()
+            t = ThreadedMigrationCompletion(self.project, self.q)
+            t.start()
+            self.after(300, self.check_queue_for_migration_completion)
         else:
             messagebox.showinfo('No project', 'Please select a project using the search box.')
 
+    def check_queue_for_migration_completion(self):
+        try:
+            self.q.get_nowait()
+            self.pb.stopandhide()
+            messagebox.showinfo('Done', 'Migration completed.')
+        except Empty:
+            self.after(100, self.check_queue_for_migration_completion)
+
     def call_check_titles_and_sd(self):
         if self.project:
-            message = self.project.check_for_titles_and_shortdescs()
-            messagebox.showinfo('Title and shortdescs', message)
+            t = ThreadedTitleAndDescriptionChecker(self.project, self.q)
+            t.start()
+            self.after(500, self.check_queue_for_titles_and_shortdescs)
         else:
             messagebox.showinfo('No project', 'Please select a project using the search box.')
+
+    def check_queue_for_titles_and_shortdescs(self):
+        try:
+            message = self.q.get_nowait()
+            # messagebox.showinfo('Titles and shortdescs', message)
+            messagebox.showinfo('Titles and shortdescs', message)
+        except Empty:
+            self.after(100, self.check_queue_for_migration_completion)
 
     def call_manage_pub(self):
         if self.project:

@@ -1,6 +1,6 @@
 from docx import Document
 from glob import iglob
-from tools.local import *
+from core.local import *
 
 
 def clear_drawing_descriptions(document):

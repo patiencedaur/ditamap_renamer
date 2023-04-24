@@ -2,15 +2,15 @@ import base64
 import datetime
 import random
 import re
-from tools.mary_debug import logger, debugmethods
-from tools.mary_xml import XMLContent
+from core.mary_debug import logger, debugmethods
+from core.mary_xml import XMLContent
 
 from lxml import etree
 from requests import Session
 from zeep import Client, Transport, exceptions
 
-from tools.ishfields import IshField
-from tools.constants import Constants
+from core.ishfields import IshField
+from core.constants import Constants
 from functools import wraps
 
 """
@@ -829,8 +829,6 @@ class Project:
         except AttributeError:
             logger.info('Library variable not found, continuing...')
         logger.info('Migration completed.')
-        from tkinter import messagebox
-        messagebox.showinfo('Done', 'Migration completed.')
 
     def create_folder_structure(self) -> dict[str, Folder]:
         for folder_name in Project.folder_names.keys():
@@ -860,9 +858,12 @@ class Project:
         if len(warnings) > 0:
             msg = 'Project ' + self.name + ' not ready for Dynamic Delivery.' + \
                   '\n------------------------------------\n' + \
+                  'Status written to file ' + self.name + '_titles_shortdescs.txt.\n' + \
                   'Problematic topics:\n'
             for warning in warnings:
                 msg = msg + warning + '\n'
+            with open(self.name + '_titles_shortdescs.txt', 'w') as f:
+                f.write(msg)
         else:
             msg = 'Congratulations! All the titles and short descriptions are in place.'
         logger.info(msg)
