@@ -1,11 +1,10 @@
-from tkinter import Toplevel, Tk, Button, Text, Label
-from tkinter.ttk import Progressbar
+from tkinter import Toplevel, Button, Text, Label
 from subprocess import Popen, PIPE
 from functools import wraps
 import logging
-from utils.constants import Constants
+from tools.constants import Constants
 from sys import exit
-from queue import Queue
+from threading import Thread
 
 
 """
@@ -81,71 +80,36 @@ logger = logging.getLogger(__name__)
 Threading and progress bar for long-running functions
 """
 
-q = Queue(maxsize=1)
-returned_values = {}
+
+class ThreadedLocalMapFactory(Thread):
+    def __init__(self, file_path, q):
+        super().__init__(daemon=True)
+        self.q = q
+        self.file_path = file_path
+
+    def run(self):
+        from tools.local import LocalMap
+        mp = LocalMap(self.file_path)
+        self.q.put(mp)
 
 
-def run_long_task():
-    """
-    Get a task from the queue and run it in a separate thread.
-    Store the return value in a global dictionary. Later it can be accessed from the Tkinter UI.
-    """
-    while True:
-        task = q.get()
-        if task is None:
-            return
-        func = task.get('func')
-        kwargs = task.get('kwargs')
-        returned_values[func.__name__] = func(**kwargs)
-
-
-class MaryProgressBar(Toplevel):
-
-    def __init__(self):
-        super().__init__(relief='raised')
-        self.title('Please wait...')
-        x_pos = int(self.winfo_screenwidth() / 2)
-        y_pos = int(self.winfo_screenheight() / 2)
-        self.geometry(f'330x80+{x_pos}+{y_pos}')
-        self.attributes('-toolwindow', True)
-        self.protocol("WM_DELETE_WINDOW", None)
-        # self.overrideredirect(True)
-        # Label(self, text='Please wait...').pack()
-        self.pb = Progressbar(self, orient='horizontal', mode='indeterminate', length='300')
-        self.pb.pack(padx=15, pady=15)
-        self.focus_force()
-
-    def start(self):
-        """
-        Jump in the Tkinter event loop.
-        """
-        self.grab_set()
-        self.after(50, self.pb.start)
-
-    def stopandhide(self):
-        self.grab_release()
-        self.destroy()
-
-
-def show_progressbar(func):
-    """
-    This decorator gets applied to functions run by run_long_task() in a separate thread.
-    The function return is stored in a global dictionary, so it later can be accessed
-    from the Tkinter UI.
-    Tkinter UI does not allow threads within itself and must function independently
-    of the backend.
-    """
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        pb = MaryProgressBar()
-        pb.start()
-
-        retvalue = func(*args, **kwargs)
-        pb.stopandhide()
-        return retvalue
-
-    return wrapper
+# def show_progressbar(func):
+#     """
+#     This decorator gets applied to functions run by run_long_task() in a separate thread.
+#     The function return is stored in a global dictionary, so it later can be accessed
+#     from the Tkinter UI.
+#     Tkinter UI does not allow threads within itself and must function independently
+#     of the backend.
+#     """
+#
+#     @wraps(func)
+#     def wrapper(*args, **kwargs):
+#         pb = MaryProgressBar()
+#         pb.start()
+#         q.put(func(*args, **kwargs))
+#         pb.stopandhide()
+#
+#     return wrapper
 
 
 """

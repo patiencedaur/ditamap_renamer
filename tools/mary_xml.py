@@ -1,8 +1,8 @@
-from utils.mary_debug import logger
+from tools.mary_debug import logger, debugmethods
 from copy import deepcopy
 from re import search
 from lxml import etree
-from utils.constants import Constants
+from tools.constants import Constants
 
 
 def TextElement(tag: str, text: str, *args, **kwargs) -> etree.Element:
@@ -11,6 +11,7 @@ def TextElement(tag: str, text: str, *args, **kwargs) -> etree.Element:
     return element
 
 
+@debugmethods
 class XMLContent:
 
     def __init__(self,
@@ -109,7 +110,7 @@ class XMLContent:
             if old_name in link_href:
                 logger.info("'" + self.title_tag.text + "'", 'has old link to', new_name, '(%s)' % link_href)
                 new_name = link_href.replace(old_name, new_name)
-                logger.info('Updated link href:', new_name, '\n')
+                logger.info('Updated link href: ' + new_name + '\n')
                 link.set('href', new_name)
 
     def fattribute(self, attr_name, mode, new_value=None) -> str | None:  # for ishfiles only

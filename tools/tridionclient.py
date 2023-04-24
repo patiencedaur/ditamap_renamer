@@ -2,15 +2,15 @@ import base64
 import datetime
 import random
 import re
-from utils.mary_debug import logger, debugmethods
-from utils.mary_xml import XMLContent
+from tools.mary_debug import logger, debugmethods
+from tools.mary_xml import XMLContent
 
 from lxml import etree
 from requests import Session
 from zeep import Client, Transport, exceptions
 
-from utils.ishfields import IshField
-from utils.constants import Constants
+from tools.ishfields import IshField
+from tools.constants import Constants
 from functools import wraps
 
 """

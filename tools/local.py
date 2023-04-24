@@ -1,11 +1,11 @@
 from copy import deepcopy
 import os
-from utils.mary_xml import XMLContent, TextElement
+from tools.mary_xml import XMLContent, TextElement
 from lxml import etree
 import re
-from utils.constants import Constants
+from tools.constants import Constants
 from shutil import copy2
-from utils.mary_debug import logger, show_progressbar
+from tools.mary_debug import logger, debugmethods
 
 prefixes: dict[str, str] = {
     # A prefix is an identifying letter that gets prepended to the filename, according to the style guide.
@@ -128,6 +128,7 @@ def LocalMapFactory(file_path):
     return LocalMap(file_path)
 
 
+@debugmethods
 class LocalMap(LocalProjectFile):
 
     def __init__(self, file_path):
@@ -218,20 +219,13 @@ class LocalMap(LocalProjectFile):
         topic.content.set_outputclass(oc)
         topic.update_doctype_in_map()
 
-        if self.source == 'word':
-            try:
-                topic.cast()
-            except Exception as e:
-                logger.debug('Cannot cast ' + str(topic) + ' to ' + str(topic.__class__) + \
-                             ':\n' + str(e))
-
         if self.source == 'cheetah':
             topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
             ish_path = topic_path.replace('.dita', '.3sish')
             topic.ish = LocalISHFile(ish_path, self)
         return topic
 
-    @show_progressbar
+    # @show_progressbar
     def get_topics(self) -> list['LocalTopic']:
         topics = []
         for topicref in self.content.root.iter('topicref'):
@@ -239,6 +233,10 @@ class LocalMap(LocalProjectFile):
             topic = self.get_topic_from_topicref(topicref)
             topics.append(topic)
         return topics
+
+    def cast_topics_from_word(self):
+        for topic in self.topics:
+            topic.cast_from_word()
 
     def refresh(self) -> tuple[set['Image'], list['LocalTopic']]:
         return self.get_images(), self.get_topics()
@@ -510,22 +508,28 @@ class LocalTopic(LocalProjectFile):
         if self.ish is not None:
             self.ish.rename_with_path(self.ish.path, new_name)
 
-    def assign_type_from_prefix(self):
-        prefix = self.name[0:2]
-        available_prefixes = {v[0]: k for k, v in Constants.outputclasses.value.items()
-                              if k != 'lpcontext'}
-        if prefix in available_prefixes.keys():
-            self.content.root.set('outputclass', available_prefixes[prefix])
-            self.content.outputclass = available_prefixes[prefix]
-            self.update_doctype_in_map()
+    def cast_from_word(self):
+        try:
+            self._cast()
+        except Exception as e:
+            logger.debug('Cannot cast ' + str(self) + ' to ' + str(self.__class__) + ':\n' + str(e))
 
-            if prefix == 'c_' or prefix == 'e_':
-                self.content.convert_to_concept()
-            elif prefix == 'r_':
-                self.content.convert_to_reference()
-            elif prefix == 't_':
-                self.content.convert_to_task()
-            self.write(doctype=Constants.outputclasses.value.get(self.content.outputclass)[2])
+    # def assign_type_from_prefix(self):
+    #     prefix = self.name[0:2]
+    #     available_prefixes = {v[0]: k for k, v in Constants.outputclasses.value.items()
+    #                           if k != 'lpcontext'}
+    #     if prefix in available_prefixes.keys():
+    #         self.content.root.set('outputclass', available_prefixes[prefix])
+    #         self.content.outputclass = available_prefixes[prefix]
+    #         self.update_doctype_in_map()
+    #
+    #         if prefix == 'c_' or prefix == 'e_':
+    #             self.content.convert_to_concept()
+    #         elif prefix == 'r_':
+    #             self.content.convert_to_reference()
+    #         elif prefix == 't_':
+    #             self.content.convert_to_task()
+    #         self.write(doctype=Constants.outputclasses.value.get(self.content.outputclass)[2])
 
     def update_doctype_in_map(self):
         for topicref in self.ditamap.content.root.iter('topicref'):
@@ -540,7 +544,7 @@ class LocalTopic(LocalProjectFile):
         self.content.move_title_shortdesc_text_from_p()
         self.write()
 
-    def cast(self):
+    def _cast(self):
         self.content.convert_to_concept()
         self.write()
 
@@ -553,7 +557,7 @@ class LocalReferenceInformationTopic(LocalTopic):
     def __repr__(self):
         return '<LocalTopic - RefInfo: ' + self.name + '>'
 
-    def cast(self):
+    def _cast(self):
         self.content.convert_to_reference()
         self.write()
 
@@ -570,7 +574,7 @@ class LocalLegalInformationTopic(LocalTopic):
         self.content.add_legal_title_and_shortdesc()
         self.write()
 
-    def cast(self):
+    def _cast(self):
         self.content.convert_to_reference()
         self.write()
 
@@ -584,7 +588,7 @@ class LocalConceptTopic(LocalTopic):
     def __repr__(self):
         return '<LocalTopic - Concept: ' + self.name + '>'
 
-    def cast(self):
+    def _cast(self):
         self.content.convert_to_concept()
         self.write()
 
@@ -597,7 +601,7 @@ class LocalTaskTopic(LocalTopic):
     def __str__(self):
         return '<LocalTopic - Task: ' + self.name + '>'
 
-    def cast(self):
+    def _cast(self):
         self.content.convert_to_task()
         self.write()
 
