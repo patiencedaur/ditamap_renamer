@@ -3,7 +3,7 @@ from sys import exit
 from tkinter import Toplevel, Label, Text, Button
 from tkinter.ttk import Progressbar
 
-from core.constants import Constants
+from marytreat.core.constants import Constants
 
 
 class MaryProgressBar(Toplevel):
@@ -46,7 +46,7 @@ class ErrorDialog(Toplevel):
 
         padding = Constants.PADDING.value
 
-        error_img = Label(self, image = "::tk::icons::error")
+        error_img = Label(self, image="::tk::icons::error")
         error_img.grid(row=0, column=0, **padding, sticky='nsew')
 
         message_box = Text(self, width=40, height=6)
@@ -62,7 +62,7 @@ class ErrorDialog(Toplevel):
         self.grab_set()
 
     def copy_and_close(self):
-        sp = Popen(['clip'], stdin=PIPE, stdout=PIPE, encoding='utf-8') # Windows only
+        sp = Popen(['clip'], stdin=PIPE, stdout=PIPE, encoding='utf-8')  # Windows only
         sp.communicate(str(self.msg))
         self.destroy()
         exit()

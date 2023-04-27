@@ -1,13 +1,17 @@
+from queue import Queue, Empty
+from subprocess import Popen
 from tkinter import Button, Label, Frame, PanedWindow, Entry, StringVar, Scrollbar, Text, Toplevel, Tk, END
 from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import ttk
-from subprocess import Popen
-from core.local import *
-from ui.utils import MaryProgressBar
-from core.rename_flare_images import RenameImageFile
-from queue import Queue, Empty
-from core.threaded import ThreadedLocalMapFactory, ThreadedLocalTopicRenamer
+
+from marytreat.core.constants import Constants
+from marytreat.core import process_word
+import marytreat.core.local as l
+from marytreat.core.rename_flare_images import RenameImageFile
+from marytreat.core.threaded import ThreadedLocalMapFactory, ThreadedLocalTopicRenamer
+from marytreat.ui.utils import MaryProgressBar
+from marytreat.core.mary_debug import logger
 
 padding = Constants.PADDING.value
 
@@ -28,10 +32,10 @@ class LocalMapProcessing(ttk.LabelFrame):
 
     def __init__(self, master) -> None:
         super().__init__(master, text='Process a local DITA project')
-        self.ditamap: LocalMap | None = None
+        self.ditamap: l.LocalMap | None = None
         self.ditamap_var = StringVar()  # something used by Tkinter, here acts as a buffer for ditamap path
         self.ditamap_var.trace('w', self.turn_on_buttons)
-        self.padding = Constants.PADDING.value
+        self.padding = l.Constants.PADDING.value
         self.no_images = True
 
         self.q = Queue()
@@ -75,31 +79,37 @@ class LocalMapProcessing(ttk.LabelFrame):
         if not file:
             return
         do_process_map = messagebox.askokcancel('Map processing',
-                               'The map ' + file + ' will be pre-processed.\n' +
-                               'If the project was derived from a Word file, ' +
-                               'the basic formatting will be added, ' +
-                               'but you will still need to clean up the topics.\n' +
-                               'Do you want to continue?', icon=messagebox.WARNING)
+                                                'The map ' + l.os.path.basename(file) + ' will be pre-processed.\n\n' +
+                                                'If the project was derived from a Word file, ' +
+                                                'basic formatting will be added, ' +
+                                                'but you will still need to clean up the topics afterwards')
         if do_process_map:
-            self.ditamap_var.set(os.path.abspath(file))
-            logger.debug('ditamap_var: ' + self.ditamap_var.get())
+            self.ditamap_var.set(l.os.path.abspath(file))
+            l.logger.debug('ditamap_var: ' + self.ditamap_var.get())
             self.pb.start()
-            t = ThreadedLocalMapFactory(os.path.abspath(file), self.q)
+            t = ThreadedLocalMapFactory(l.os.path.abspath(file), self.q)
             t.start()
             self.after(100, self.check_queue_for_map)
 
     def check_queue_for_map(self):
         try:
             self.ditamap = self.q.get_nowait()
-            logger.debug(self.ditamap.image_folder)
+            if self.ditamap == -1:
+                raise Exception
+            l.logger.debug(self.ditamap.image_folder)
             if len(self.ditamap.images) > 0:
                 self.no_images = False
             if self.ditamap.source == 'word':
                 self.ditamap.cast_topics_from_word()
+                process_word.after_conversion(self.ditamap.folder)
             self.pb.stopandhide()
             self.turn_on_buttons()
         except Empty:
             self.after(100, self.check_queue_for_map)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)
 
     def turn_on_buttons(self, *args):
         """
@@ -132,10 +142,15 @@ class LocalMapProcessing(ttk.LabelFrame):
         try:
             number_renamed_topics = self.q.get_nowait()
             self.pb.stopandhide()
-            rename_msg = 'Processed %s topics in map folder.' % str(number_renamed_topics)
-            messagebox.showinfo(title='Renamed files', message=rename_msg)
+            if number_renamed_topics != -1:
+                rename_msg = 'Processed %s topics in map folder.' % str(number_renamed_topics)
+                messagebox.showinfo(title='Renamed files', message=rename_msg)
         except Empty:
             self.after(100, self.check_queue_for_renamed_topics)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)
 
     def call_mass_edit(self, *args):
         if self.ditamap:
@@ -298,13 +313,13 @@ class MissingItemsWindow(Tk):
         self.ditamap.refresh()
         pfiles = self.ditamap.get_problematic_files()
 
-        def create_table_row(topic: LocalTopic, parent_id=''):
+        def create_table_row(topic: l.LocalTopic, parent_id=''):
             tags = ''
             if parent_id != '' and topic not in pfiles:
                 tags = 'greyed_out'
             if topic in pfiles:
                 pfiles.remove(topic)
-            content: XMLContent = topic.content
+            content: l.XMLContent = topic.content
             has_title = '-' if content.title_missing() else content.title_tag.text
             has_shortdesc = '-' if content.shortdesc_missing() else content.shortdesc_tag.text
             has_draft_comments = 'Yes' if len(content.draft_comments) > 0 else ''
@@ -327,8 +342,8 @@ class MissingItemsWindow(Tk):
 
     def save_file_list(self):
         status_name = 'status_' + self.ditamap.basename + '.txt'
-        status_path = os.path.join(self.ditamap.folder, status_name)
-        if os.path.exists(status_path):
+        status_path = l.os.path.join(self.ditamap.folder, status_name)
+        if l.os.path.exists(status_path):
             open(status_path, 'w').close()  # clear the contents
         with open(status_path, 'a') as status:
             status.write('Edit shortdescs in the following files:\n\n')

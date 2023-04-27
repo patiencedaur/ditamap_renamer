@@ -4,12 +4,12 @@ from tkinter import Entry
 from tkinter import messagebox
 from tkinter.ttk import Treeview
 
-from core.constants import Constants
-from core.mary_debug import logger, debugmethods
-from core.mary_xml import XMLContent
-from core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedTitleAndDescriptionChecker
-from core.tridionclient import SearchRepository, Project
-from ui.utils import MaryProgressBar
+from marytreat.core.constants import Constants
+from marytreat.core.mary_debug import logger, debugmethods
+from marytreat.core.mary_xml import XMLContent
+from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedTitleAndDescriptionChecker
+from marytreat.core.tridionclient import SearchRepository, Project
+from marytreat.ui.utils import MaryProgressBar
 
 padding = Constants.PADDING.value
 
@@ -86,7 +86,7 @@ class SearchPartNumber(Frame):
     def check_queue_for_search_result(self):
         try:
             result = self.q.get_nowait()
-            if result:
+            if result and result != -1:
                 self.p_name.set(result[0])
                 self.p_id.set(result[1])
                 self.pb.stopandhide()
@@ -96,9 +96,12 @@ class SearchPartNumber(Frame):
                 messagebox.showinfo('Not found', 'Project not found. Try a different scope.')
         except Empty:
             self.after(100, self.check_queue_for_search_result)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)
 
 
-@debugmethods
 class ServerActionsTab(Frame):
 
     def __init__(self, master):
@@ -159,14 +162,20 @@ class ServerActionsTab(Frame):
 
     def check_queue_for_migration_completion(self):
         try:
-            self.q.get_nowait()
-            self.pb.stopandhide()
-            messagebox.showinfo('Done', 'Migration completed.')
+            result = self.q.get_nowait()
+            if result and result != -1:
+                self.pb.stopandhide()
+                messagebox.showinfo('Done', 'Migration completed.')
         except Empty:
             self.after(100, self.check_queue_for_migration_completion)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)
 
     def call_check_titles_and_sd(self):
         if self.project:
+            self.pb.start()
             t = ThreadedTitleAndDescriptionChecker(self.project, self.q)
             t.start()
             self.after(500, self.check_queue_for_titles_and_shortdescs)
@@ -176,10 +185,16 @@ class ServerActionsTab(Frame):
     def check_queue_for_titles_and_shortdescs(self):
         try:
             message = self.q.get_nowait()
-            # messagebox.showinfo('Titles and shortdescs', message)
-            messagebox.showinfo('Titles and shortdescs', message)
+            if message and message != -1:
+                self.pb.stopandhide()
+                # messagebox.showinfo('Titles and shortdescs', message)
+                messagebox.showinfo('Titles and shortdescs', message)
         except Empty:
             self.after(100, self.check_queue_for_migration_completion)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)
 
     def call_manage_pub(self):
         if self.project:
@@ -204,10 +219,10 @@ class ManagePublication(Toplevel):
         columns = ['type', 'structure']
         self.tree_widget = Treeview(
             pub_tree,
-            columns = columns,
-            padding = '10 10',
-            selectmode = 'extended',
-            show = 'tree'
+            columns=columns,
+            padding='10 10',
+            selectmode='extended',
+            show='tree'
         )
         map_tree = self.get_map_tree()
         if not map_tree:
@@ -228,6 +243,7 @@ class ManagePublication(Toplevel):
 
         def create_row():
             pass
+
     def get_map_tree(self):
         pub = self.project.get_publication()
         if pub:

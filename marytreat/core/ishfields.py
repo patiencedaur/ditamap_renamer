@@ -1,6 +1,7 @@
 from lxml import etree
-from core.constants import Constants
-from core.mary_debug import logger
+
+from marytreat.core.constants import Constants
+from marytreat.core.mary_debug import logger
 
 
 class IshField:

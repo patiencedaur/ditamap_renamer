@@ -1,7 +1,12 @@
-/secret.py
+/marytreat/secret.py
 /fhpicustomersupportstories-2023-03-27.csv
 /fhpiproduct-2023-03-16.csv
 /venv/
 /misc/
 /.idea/
 /logs/*.log
+# Nuitka artifacts
+marytreat.cmd
+marytreat.exe
+marytreat.build
+marytreat.dist

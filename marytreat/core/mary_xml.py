@@ -1,8 +1,10 @@
-from core.mary_debug import logger, debugmethods
 from copy import deepcopy
 from re import search
+
 from lxml import etree
-from core.constants import Constants
+
+from marytreat.core.constants import Constants
+from marytreat.core.mary_debug import logger, debugmethods
 
 
 def TextElement(tag: str, text: str, *args, **kwargs) -> etree.Element:

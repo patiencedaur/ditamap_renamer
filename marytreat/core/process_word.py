@@ -1,6 +1,10 @@
-from docx import Document
+import os
 from glob import iglob
-from core.local import *
+from shutil import copy2
+
+from docx import Document
+
+from marytreat import core as l
 
 
 def clear_drawing_descriptions(document):
@@ -19,9 +23,9 @@ def show_table_entries(document):
     for table in document.tables:
         for row in table.rows:
             for cell in row.cells:
-                logger.info(cell)
+                l.logger.info(cell)
                 for paragraph in cell.paragraphs:
-                    logger.info(paragraph.text)
+                    l.logger.info(paragraph.text)
 
 
 def backup_doc(path):
@@ -31,7 +35,7 @@ def backup_doc(path):
 
 def get_xml_content(document):
     root = document.element[0]
-    return XMLContent(root)
+    return l.XMLContent(root)
 
 
 def prepare_for_batch_converter(path):
@@ -43,8 +47,8 @@ def prepare_for_batch_converter(path):
 def get_ditamap(proj_folder):
     for file in iglob(proj_folder + '/*.ditamap'):
         if file.endswith('.ditamap'):
-            word_ditamap = LocalMap(file)
-            word_ditamap.image_folder = os.path.join(proj_folder, 'media')
+            word_ditamap = l.LocalMap(file)
+            word_ditamap.image_folder = l.os.path.join(proj_folder, 'media')
             return word_ditamap
 
 
@@ -69,19 +73,20 @@ def after_conversion(project_folder):
     ditamap.write()
 
 
-doc_folder = r'C:\hp_cheetahr5\TS5ES-00009 - Feeder Service'
-# doc_path = os.path.join(doc_folder, 'TS5ES-00017.docx')
-# prepare_for_batch_converter(doc_path)
+if __name__ == "__main__":
+    doc_folder = r'C:\hp_cheetahr5\TS5ES-00009 - Feeder Service'
+    # doc_path = os.path.join(doc_folder, 'TS5ES-00017.docx')
+    # prepare_for_batch_converter(doc_path)
 
-dita_project_folder = os.path.join(doc_folder, 'output - Copy')
-after_conversion(dita_project_folder)
+    dita_project_folder = l.os.path.join(doc_folder, 'output - Copy')
+    after_conversion(dita_project_folder)
 
-# ditamap = get_ditamap(dita_project_folder)
-# topic = ditamap.topics[10]
-# topic.content.create_shortdesc_from_first_p()
-# for t in ditamap.topics:
-#     t.content.create_shortdesc_from_first_p()
-#     break
+    # ditamap = get_ditamap(dita_project_folder)
+    # topic = ditamap.topics[10]
+    # topic.content.create_shortdesc_from_first_p()
+    # for t in ditamap.topics:
+    #     t.content.create_shortdesc_from_first_p()
+    #     break
 
 # Convert with Oxygen Batch Converter using Oxygen 25.
 # Create root concept.

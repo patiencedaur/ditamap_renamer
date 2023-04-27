@@ -1,11 +1,13 @@
-from copy import deepcopy
 import os
-from core.mary_xml import XMLContent, TextElement
-from lxml import etree
 import re
-from core.constants import Constants
+from copy import deepcopy
 from shutil import copy2
-from core.mary_debug import logger, debugmethods
+
+from lxml import etree
+
+from marytreat.core.constants import Constants
+from marytreat.core.mary_debug import logger, debugmethods
+from marytreat.core.mary_xml import XMLContent, TextElement
 
 prefixes: dict[str, str] = {
     # A prefix is an identifying letter that gets prepended to the filename, according to the style guide.
@@ -484,7 +486,7 @@ class LocalTopic(LocalProjectFile):
         if isinstance(self, LocalLegalInformationTopic):
             self.add_title_and_shortdesc()
 
-        old_topic = LocalTopic(self.path, self.ditamap)
+        old_topic = LocalTopic(self.path, self.ditamap)  # deep copy
         if self.content.title_missing():
             logger.info('Skipped: %s, nothing to rename (title missing)' % old_topic.name)
             return
@@ -498,8 +500,9 @@ class LocalTopic(LocalProjectFile):
         self.name = new_name
         self.rename_path(old_topic.path, new_name)
         # Update links to this file throughout the folder
-        self.content.update_local_links(old_topic.name, new_name)
-        self.write()
+        for t in self.ditamap.topics:
+            t.content.update_local_links(old_topic.name, new_name)
+            t.write()
         self.ditamap.update_topicref(old_topic.name, self.name)
         if self.ish is not None:
             self.ish.rename_with_path(self.ish.path, new_name)

@@ -1,6 +1,8 @@
-from functools import wraps
 import logging
-from ui.utils import ErrorDialog
+import os
+from functools import wraps
+
+from marytreat.ui.utils import ErrorDialog
 
 """
 Logging
@@ -13,11 +15,16 @@ class MaryLogger(logging.Logger):
         super().__init__(name)
         self.setLevel(logging.DEBUG)
         log_filename = './logs/marytreat.log'
+        if not os.path.exists('./logs'):
+            os.makedirs('logs')
         with open(log_filename, 'w'): # clear file contents
             pass
         fh = logging.FileHandler(log_filename, encoding='utf-8')
         fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
         self.addHandler(fh)
+        ch = logging.StreamHandler()
+        ch.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+        self.addHandler(ch)
 
     def error(self, msg, *args, **kwargs):
         self._log(logging.ERROR, msg, args, **kwargs)

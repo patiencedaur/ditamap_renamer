@@ -5,6 +5,7 @@ from threading import Thread
 Long-running threaded functions
 """
 
+
 class ThreadedLocalMapFactory(Thread):
     def __init__(self, file_path, q):
         super().__init__(daemon=True)
@@ -12,7 +13,7 @@ class ThreadedLocalMapFactory(Thread):
         self.file_path = file_path
 
     def run(self):
-        from core.local import LocalMap
+        from marytreat.core.local import LocalMap
         mp = LocalMap(self.file_path)
         self.q.put(mp)
 
@@ -38,7 +39,7 @@ class ThreadedRepositorySearch(Thread):
         self.folder = folder
 
     def run(self):
-        from core.tridionclient import SearchRepository
+        from marytreat.core.tridionclient import SearchRepository
         result = SearchRepository.scan_folder(self.part_no, self.folder, 0)
         self.q.put(result)
 

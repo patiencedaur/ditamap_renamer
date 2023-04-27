@@ -1,5 +1,4 @@
-from ui.main_window import App
-
+from marytreat.ui.main_window import App
 
 if __name__ == '__main__':
     app = App()

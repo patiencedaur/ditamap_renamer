@@ -1,5 +1,6 @@
 from enum import Enum
-from secret import username, password, hpi_hostname
+
+from marytreat.secret import username, password, hpi_hostname
 
 
 class Constants(Enum):
@@ -288,5 +289,5 @@ class Constants(Enum):
                 'datatype': 'ISHLov',
                 'datasource': 'DHPITEMPLATETYPE',
                 'is_element': False
-            }
+            },
         }

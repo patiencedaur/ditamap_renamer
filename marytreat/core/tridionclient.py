@@ -2,16 +2,16 @@ import base64
 import datetime
 import random
 import re
-from core.mary_debug import logger, debugmethods
-from core.mary_xml import XMLContent
+from functools import wraps, reduce
 
 from lxml import etree
 from requests import Session
 from zeep import Client, Transport, exceptions
 
-from core.ishfields import IshField
-from core.constants import Constants
-from functools import wraps
+from marytreat.core.constants import Constants
+from marytreat.core.ishfields import IshField
+from marytreat.core.mary_debug import logger, debugmethods
+from marytreat.core.mary_xml import XMLContent
 
 """
 A Python client for SDL Tridion Docs. Created for HP Indigo by Dia Daur.
@@ -553,7 +553,7 @@ class Publication:
             ('fhpipagecountoptimized', 'yes'),
             ('fhpichapterpagestart', 'next.page'),
             ('fhpinumberchapters', 'yes'),
-            ('fhpisecondarycolor', 'blue.hp.2925c')
+            ('fhpisecondarycolor', 'blue.hp.2172c')
         ).pack
         self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
                                  psOutputFormat='HPI PDF', psLanguageCombination='en-US')
@@ -668,7 +668,7 @@ class Folder:
         def get_obj_name_from_guid(guid_no: str) -> str:
             req_metadata: str = Metadata(('ftitle', '')).pack
             xml = DocumentObject().service.GetMetaData(token, guid_no,
-                                           psXMLRequestedMetaData=req_metadata)['psOutXMLObjList']
+                                                       psXMLRequestedMetaData=req_metadata)['psOutXMLObjList']
             xml = Unpack.wrap(xml)
             obj_metadata: Metadata = Unpack.to_metadata(xml)
             object_name = [field.dict_form.get('FTITLE').get('text')
@@ -710,11 +710,11 @@ class Folder:
 @debugmethods
 @requires_token
 class Project:
-    folder_names = {'images': ('ISHIllustration', 'Image'),
-                    'maps': ('ISHMasterDoc', 'Map'),
-                    'publications': ('ISHPublication', 'Publications'),
-                    'topics': ('ISHModule', 'Topic'),
-                    'variables': ('ISHLibrary', 'Library topic')}
+    folder_names = {('images', 'media', 'Images'): ('ISHIllustration', 'Image'),
+                    ('maps', 'Maps'): ('ISHMasterDoc', 'Map'),
+                    ('publications', 'Publications'): ('ISHPublication', 'Publications'),
+                    ('topics', 'Topics'): ('ISHModule', 'Topic'),
+                    ('variables', 'Variables'): ('ISHLibrary', 'Library topic')}
 
     def __init__(self, name: str = None, id: str | int = None):
         logger.debug('Creating project:', locals())
@@ -734,25 +734,30 @@ class Project:
         subfolders: dict[str, Folder] = {}
         for metadata, folder_id in subfolder_data:
             name: str = metadata.dict_form.get('FNAME').get('text')
-            if any(k in name for k in Project.folder_names.keys()):  # if folder with similar name exists
-                folder_obj: Folder = Folder(id=folder_id, metadata=metadata)
-                subfolders[name] = folder_obj
+            # if in any key there is an item that looks like folder name
+            for variants_list in Project.folder_names.keys():
+                if any(name == name_variant for name_variant in variants_list):  # if folder with this name exists
+                    folder_obj: Folder = Folder(id=folder_id, metadata=metadata)
+                    subfolders[name] = folder_obj
         return subfolders
 
-    def create_subfolder(self, folder_name: str) -> dict[str, Folder] | None:
-        folder_type: str = Project.folder_names.get(folder_name)[0]
-        if folder_name not in self.subfolders.keys():  # if folder does not exist
+    def create_subfolder(self, folder_name: str): # -> dict[str, Folder] | None:
+        if folder_name not in self.subfolders.keys():
+            # if folder does not exist
             try:
-                new_folder = Folder(name=folder_name, type=folder_type, parent_id=self.folder.id)
-                self.subfolders[folder_name] = new_folder
-                logger.debug(self.subfolders)
-                return self.subfolders
+                for variants, params in Project.folder_names.items():
+                    if folder_name in variants:
+                        folder_type = params[0]
+                        new_folder = Folder(name=folder_name, type=folder_type, parent_id=self.folder.id)
+                        self.subfolders[folder_name] = new_folder
+                        logger.debug(self.subfolders)
+                        # return self.subfolders
             except exceptions.Fault as e:
                 logger.critical('Problem with creating folder ' + folder_name +
                                 '. Check in the Content Manager if it already exists\n' + str(e))
 
     def create_publication(self) -> Publication:
-        pub_folder: Folder = self.subfolders.get('publications')
+        pub_folder: Folder = self.subfolders.get('publications') or self.subfolders.get('Publications')
         pub_guids: list[str] = pub_folder.get_contents('ishobjects')
         if len(pub_guids) == 0:
             disclos_level: str | int = Publication.disclosure_levels.get('HP and Customer Viewable')
@@ -771,7 +776,7 @@ class Project:
                             'Please delete the unneeded publications in the Content Manager')
 
     def get_publication(self) -> Publication | None:
-        pub_folder: Folder = self.subfolders.get('publications')
+        pub_folder: Folder = self.subfolders.get('publications') or self.subfolders.get('Publications')
         pub_guids: list[str] = pub_folder.get_contents('ishobjects')
         if len(pub_guids) == 1:
             pub = Publication(id=pub_guids[0])
@@ -781,7 +786,7 @@ class Project:
                          'Please check the Content Manager for missing/redundant files.')
 
     def get_root_map(self) -> Map:
-        map_folder: Folder = self.subfolders.get('maps')
+        map_folder: Folder = self.subfolders.get('maps') or self.subfolders.get('Maps')
         map_name_and_guid: tuple[str, str] = map_folder.locate_object_by_name_start('rm_')
         if map_name_and_guid:
             map_obj = Map(id=map_name_and_guid[1])
@@ -791,8 +796,10 @@ class Project:
         return map_obj
 
     def migrate_libvar_from_topic(self) -> LibVariable | None:
-        topic_folder: Folder = self.subfolders.get('topics')
-        var_folder: Folder = self.subfolders.get('variables')
+        topic_folder: Folder = reduce((lambda x, y: x or y),
+                                      (map(self.subfolders.get, ('topics', 'Topics'))))
+        var_folder: Folder = reduce((lambda x, y: x or y),
+                                      (map(self.subfolders.get, ('variables', 'Variables'))))
         var_guids: list[str] = var_folder.get_contents('ishobjects')
         libvar_sources: tuple[str, str] = topic_folder.locate_object_by_name_start('v_')
         try:
@@ -814,8 +821,12 @@ class Project:
 
     def complete_migration(self) -> None:
         logger.info("Starting migration...")
-        for folder_name in Project.folder_names.keys():
-            self.create_subfolder(folder_name)
+        # check what folders exist already
+        # get root folder content and check it against name variants
+        for variants in Project.folder_names.keys():
+            # if folder with any of the name variants does not exist
+            if all(variant not in self.subfolders.keys() for variant in variants):
+                self.create_subfolder(variants[0])
         pub: Publication = self.create_publication()
         root_map: Map = self.get_root_map()
         logger.info('Root map: ' + str(root_map) + ', adding to publication...')
@@ -832,7 +843,7 @@ class Project:
 
     def create_folder_structure(self) -> dict[str, Folder]:
         for folder_name in Project.folder_names.keys():
-            self.create_subfolder(folder_name)
+            self.create_subfolder(folder_name[0])
         return self.subfolders
 
     def check_for_titles_and_shortdescs(self):
@@ -935,8 +946,8 @@ def check_multiple_projects_for_titles_and_shortdescs(partno_list: list[str]):
     for part_no in partno_list:
         something_is_missing = False
         proj_name, folder_id = SearchRepository.scan_folder(part_number=part_no,
-                                                              folder=Folder(id=Constants.INDIGO_TOP_FOLDER.value),
-                                                              start_depth=0, max_depth=5)
+                                                            folder=Folder(id=Constants.INDIGO_TOP_FOLDER.value),
+                                                            start_depth=0, max_depth=5)
         proj = Project(proj_name, folder_id)
         topic_folder = proj.subfolders.get('topics')
         if not topic_folder:
