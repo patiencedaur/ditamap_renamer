@@ -402,6 +402,15 @@ class Map(DocumentObject):
         id = response['psLogicalId']
         return id
 
+    @property
+    def content_tree(self):
+        """
+        Analyzing the XMLContent of the map is easier/faster than using DocumentObj.GetChildren recursively.
+        Use this method to display the publication in the UI.
+        :return: what
+        """
+        return None
+
 
 @requires_token
 class LibVariable(DocumentObject):
@@ -450,6 +459,20 @@ class Topic(DocumentObject):
 
     def __init__(self, name: str = None, folder_id: int | str = None, id: str = None) -> None:
         super().__init__(name, folder_id, id)
+
+    def wrap_in_map(self):
+        """
+        Assert that the topic is part of a map.
+        Find out where to store maps.
+        (May involve asserting that the map is part of a publication,
+        the publication is part of a project,
+        and the project has subfolders, including the maps subfolder.)
+        Create a map object in the maps subfolder.
+        Edit the map XML contents so that it includes the new submap and it's right around the self topic.
+        Upload the map back to the server.
+        :return: Map
+        """
+        pass
 
 
 @requires_token
@@ -506,8 +529,12 @@ class Publication:
             'psOutXMLObjList']
         return Unpack.to_metadata(xml)
 
-    def set_metadata(self, metadata: Metadata) -> None:
-        self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=metadata.pack)
+    def set_metadata(self, metadata: Metadata, level='logical', outputformat='HPI PDF') -> None:
+        if level == 'lng':
+            self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=metadata.pack,
+                                     psOutputFormat=outputformat, psLanguageCombination='en-US')
+        else:
+            self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=metadata.pack)
 
     def set_usergroup(self) -> None:
         meta: Metadata = Metadata(('fusergroup', 'Indigo'))
@@ -549,11 +576,11 @@ class Publication:
     def set_hpi_pdf_metadata(self):
         # Requires a created HPI PDF output
         meta = Metadata(
-            ('fhpipresentationtarget', 'screen'),
-            ('fhpipagecountoptimized', 'yes'),
-            ('fhpichapterpagestart', 'next.page'),
-            ('fhpinumberchapters', 'yes'),
-            ('fhpisecondarycolor', 'blue.hp.2172c')
+            ('fhpipresentationtarget', 'VHPIPRESENTATIONTARGETSCREEN'),
+            ('fhpipagecountoptimized', 'VHPIPAGECOUNTOPTIMIZEDYES'),
+            ('fhpichapterpagestart', 'VHPICHAPTERPAGESTARTNEXT.PAGE'),
+            ('fhpinumberchapters', 'VHPINUMBERCHAPTERSYES'),
+            ('fhpisecondarycolor', 'VHPISECONDARYCOLORBLUE.HP.2172C')
         ).pack
         self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
                                  psOutputFormat='HPI PDF', psLanguageCombination='en-US')
@@ -785,7 +812,7 @@ class Project:
             logger.error('The project should have only one publication. ' +
                          'Please check the Content Manager for missing/redundant files.')
 
-    def get_root_map(self) -> Map:
+    def get_or_create_root_map(self) -> Map:
         map_folder: Folder = self.subfolders.get('maps') or self.subfolders.get('Maps')
         map_name_and_guid: tuple[str, str] = map_folder.locate_object_by_name_start('rm_')
         if map_name_and_guid:
@@ -828,7 +855,7 @@ class Project:
             if all(variant not in self.subfolders.keys() for variant in variants):
                 self.create_subfolder(variants[0])
         pub: Publication = self.create_publication()
-        root_map: Map = self.get_root_map()
+        root_map: Map = self.get_or_create_root_map()
         logger.info('Root map: ' + str(root_map) + ', adding to publication...')
         pub.add_map(root_map)
         logger.info('Searching for library variable...')
@@ -984,11 +1011,6 @@ if __name__ == '__main__':
     project = Project()
     if project:
         project.complete_migration()
-
-    # LOV.get_value_tree('FHPISUPPRESSTITLEPAGE')
-
-    # product = Tag('fhpicustomersupportstories')
-    # product.save_possible_values_to_file()
 
     # pub_to_query = Publication(id='GUID-34D23F5B-F404-48FE-8EF5-3E41CC70DE2F')
     # print(pub_to_query.get_hpi_pdf_metadata(Metadata(('fhpisecondarycolor', ''))))
