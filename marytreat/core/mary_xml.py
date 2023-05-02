@@ -105,15 +105,21 @@ class XMLContent:
             parent_tag.insert(1, self.shortdesc_tag)
 
     def update_local_links(self, old_name: str, new_name: str) -> None:
+        """
+        Update links to a local DITA document in this file.
+        :param old_name: old name of the DITA document (ex. r_2_1_1.dita)
+        :param new_name: new name of the DITA document (ex. r_Printing_instructions.dita)
+        :return:
+        """
         if len(self.local_links) == 0:
             return
+        print(self.title_tag.text, self.local_links, old_name, new_name)
         for link in self.local_links:
             link_href = link.attrib.get('href')
             if old_name in link_href:
                 logger.info("'" + self.title_tag.text + "'" +
                             ' has old link to ' + new_name + ' (%s)' % link_href)
                 new_name = link_href.replace(old_name, new_name)
-                logger.info('Updated link href: ' + new_name + '\n')
                 logger.info('Updated link href: ' + new_name + '\n')
                 link.set('href', new_name)
 

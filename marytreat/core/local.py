@@ -215,7 +215,6 @@ class LocalMap(LocalProjectFile):
         else:
             topic = LocalTopic(topic_path, self)
         topic.content.set_outputclass(oc)
-        topic.update_doctype_in_map()
 
         if self.source == 'cheetah':
             topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
@@ -223,7 +222,6 @@ class LocalMap(LocalProjectFile):
             topic.ish = LocalISHFile(ish_path, self)
         return topic
 
-    # @show_progressbar
     def get_topics(self) -> list['LocalTopic']:
         topics = []
         for topicref in self.content.root.iter('topicref'):
@@ -499,9 +497,9 @@ class LocalTopic(LocalProjectFile):
 
         self.name = new_name
         self.rename_path(old_topic.path, new_name)
-        # Update links to this file throughout the folder
+        # Update links to this file in all map topics
         for t in self.ditamap.topics:
-            t.content.update_local_links(old_topic.name, new_name)
+            t.content.update_local_links(old_topic.name, new_name + '.dita')
             t.write()
         self.ditamap.update_topicref(old_topic.name, self.name)
         if self.ish is not None:
@@ -604,7 +602,7 @@ class LocalTaskTopic(LocalTopic):
         self.content.convert_to_task()
         self.write()
 
-
+@debugmethods
 class LocalISHFile(LocalProjectFile):
     """
     Can use XMLContent functions for getting FTITLE and FMODULETYPE.

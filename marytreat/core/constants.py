@@ -262,7 +262,7 @@ class Constants(Enum):
                 'datasource': 'DHPINUMBERCHAPTERS',
                 'is_element': False,
             },
-            'FHPISECONDARYCOLOR': {  # value = 'blue.hp.2925c'
+            'FHPISECONDARYCOLOR': {  # value = 'blue.hp.2172c'
                 'ishtype': 'ISHPublication',
                 'level': 'Lng',
                 'datatype': 'ISHLov',

@@ -94,8 +94,6 @@ class LocalMapProcessing(ttk.LabelFrame):
     def check_queue_for_map(self):
         try:
             self.ditamap = self.q.get_nowait()
-            if self.ditamap == -1:
-                raise Exception
             l.logger.debug(self.ditamap.image_folder)
             if len(self.ditamap.images) > 0:
                 self.no_images = False
@@ -106,10 +104,6 @@ class LocalMapProcessing(ttk.LabelFrame):
             self.turn_on_buttons()
         except Empty:
             self.after(100, self.check_queue_for_map)
-        except Exception as e:
-            self.pb.stopandhide()
-            self.q.put(-1)
-            logger.error(e)
 
     def turn_on_buttons(self, *args):
         """
@@ -142,15 +136,10 @@ class LocalMapProcessing(ttk.LabelFrame):
         try:
             number_renamed_topics = self.q.get_nowait()
             self.pb.stopandhide()
-            if number_renamed_topics != -1:
-                rename_msg = 'Processed %s topics in map folder.' % str(number_renamed_topics)
-                messagebox.showinfo(title='Renamed files', message=rename_msg)
+            rename_msg = 'Processed %s topics in map folder.' % str(number_renamed_topics)
+            messagebox.showinfo(title='Renamed files', message=rename_msg)
         except Empty:
             self.after(100, self.check_queue_for_renamed_topics)
-        except Exception as e:
-            self.pb.stopandhide()
-            self.q.put(-1)
-            logger.error(e)
 
     def call_mass_edit(self, *args):
         if self.ditamap:
