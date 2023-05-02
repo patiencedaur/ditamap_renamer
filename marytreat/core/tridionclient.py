@@ -585,12 +585,13 @@ class Publication:
         self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
                                  psOutputFormat='HPI PDF', psLanguageCombination='en-US')
 
-    def publish_portals(self):
-        meta = Metadata(('fhpipublishtoportals', 'yes')).pack
+    def publish_to_portals(self):
+        meta = Metadata(('fhpipublishtoportals', 'VHPIPUBLISHTOPORTALSYES')).pack
         # required_meta = Metadata(('fishoutputformatref', 'HPI PDF')).pack
         self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
                                  # psXMLRequiredCurrentMetadata=required_meta,
                                  psOutputFormat='HPI PDF', psLanguageCombination='en-US')
+        logger.info('Set publication ' + self.id + ' to portal publishing')
 
 
 @debugmethods
