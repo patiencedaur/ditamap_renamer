@@ -6,13 +6,13 @@ Requires ImageMagick installed.
 
 print("""
 This script requires ImageMagick installed on your computer.
-* Convert pngs with too large resolutions into 150 ppi.
-* Convert too wide 150 ppi images to 4 inches wide (600 px).
+* Convert local pngs with too large resolutions into 150 ppi.
+* Convert too wide local 150 ppi images to 4 inches wide (600 px).
   
 It is recommended to backup the images folder before you run this script.
 
 """)
-images_folder = input('Enter the path to the images folder: ')
+images_folder = input('Enter the path to the local images folder: ')
 
 pngs = [fl for fl in os.listdir(images_folder) if fl.endswith(('.png', '.PNG'))]
 too_large = []

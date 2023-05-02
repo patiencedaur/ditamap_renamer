@@ -1,21 +1,7 @@
 from marytreat.core.tridionclient import Publication, Metadata
-import uuid
-from lxml import etree
+from _validator import get_guid
 
-while True:
-    guid = input('Enter publication GUID or copy the publication (p_***) string here: ')
-    try:
-        uuid.UUID(guid)
-        break
-    except ValueError:
-        tree = etree.fromstring(guid)
-        obj = tree.find('ishobject')
-        guid = obj.attrib.get('ishref')
-        try:
-            uuid.UUID(guid[5:])
-            break
-        except ValueError:
-            continue
+guid = get_guid('Enter publication GUID or copy the publication (p_***) string here: ')
 
 pub = Publication(id=guid)
 pub.publish_to_portals()

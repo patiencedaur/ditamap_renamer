@@ -1,10 +1,9 @@
 from marytreat.core.tridionclient import LOV
-from marytreat.core.constants import Constants
-from lxml import etree
 
 # while True:
 lov = input('Enter value name: ')
-# if lov.upper() in Constants.ISHFIELDS.value.keys():
+if lov.startswith('f'):  # example: 'fhpisuppresstitlepage' (ishfield) instead of 'dhpisuppresstitlepage'
+    lov = 'd' + lov[1:]
 xml = LOV.get_value_tree(lov)
 for ishlovvalue in xml.iter('ishlovvalue'):
     value = ishlovvalue.attrib.get('ishref')
