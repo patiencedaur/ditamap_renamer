@@ -1,7 +1,7 @@
 import logging
 import os
 from functools import wraps
-
+import marytreat
 from marytreat.ui.utils import ErrorDialog
 
 """
@@ -14,7 +14,7 @@ class MaryLogger(logging.Logger):
     def __init__(self, name):
         super().__init__(name)
         self.setLevel(logging.DEBUG)
-        log_filename = './logs/marytreat.log'
+        log_filename = os.path.join(os.path.dirname(marytreat.__file__), 'logs', 'marytreat.log')
         if not os.path.exists('./logs'):
             os.makedirs('logs')
         with open(log_filename, 'w'): # clear file contents
