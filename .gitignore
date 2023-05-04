@@ -7,6 +7,8 @@
 /logs/
 # Nuitka artifacts
 marytreat.cmd
+marytreat.bat
 marytreat.exe
 marytreat.build
 marytreat.dist
+/marytreat/scripts/scitex.py
