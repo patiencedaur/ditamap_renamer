@@ -1,13 +1,13 @@
 from enum import Enum
-
-from marytreat.secret import username, password, hpi_hostname
+from base64 import b64decode
+import os
 
 
 class Constants(Enum):
 
-    USERNAME = username
-    PASSWORD = password
-    HOSTNAME = hpi_hostname
+    with open(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+              b64decode('c2VjcmV0LnB5').decode('utf-8'))) as f:
+        HOSTNAME, USERNAME, PASSWORD = b64decode(f.readline()).decode('utf-8').split('\n')
     INDIGO_TOP_FOLDER = 6721145
     SCITEX_TOP_FOLDER = 7793322
     UNKNOWN = None
