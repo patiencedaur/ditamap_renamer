@@ -1,12 +1,23 @@
 import logging
 import os
 from functools import wraps
-import marytreat
 from marytreat.ui.utils import ErrorDialog
+import marytreat
 
 """
 Logging
 """
+
+def create_log_file():
+    root = os.path.dirname(marytreat.__file__)
+    log_folder = os.path.join(root, 'logs')
+    if not os.path.exists(log_folder):
+        os.makedirs(log_folder)
+    log_filename = os.path.join(log_folder, 'marytreat.log')
+    if os.path.exists(log_filename):
+        with open(log_filename, 'w'):  # clear file contents
+            pass
+    return log_filename
 
 
 class MaryLogger(logging.Logger):
@@ -14,15 +25,13 @@ class MaryLogger(logging.Logger):
     def __init__(self, name):
         super().__init__(name)
         self.setLevel(logging.DEBUG)
-        log_filename = os.path.join(os.path.dirname(marytreat.__file__), 'logs', 'marytreat.log')
-        if not os.path.exists('./logs'):
-            os.makedirs('logs')
-        with open(log_filename, 'w'): # clear file contents
-            pass
+        log_filename = create_log_file()
         fh = logging.FileHandler(log_filename, encoding='utf-8')
+        fh.setLevel(logging.DEBUG)
         fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
         self.addHandler(fh)
         ch = logging.StreamHandler()
+        ch.setLevel(logging.WARNING)
         ch.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
         self.addHandler(ch)
 
