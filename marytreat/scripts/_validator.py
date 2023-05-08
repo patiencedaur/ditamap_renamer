@@ -1,6 +1,7 @@
 import uuid
 from lxml import etree
 
+
 def validate(user_input):
     try:
         uuid.UUID(user_input.strip())  # mask: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -11,7 +12,7 @@ def validate(user_input):
             return user_input
         except ValueError:
             tree = etree.fromstring(user_input)  # Ctrl-C - Ctrl-V from Publication Manager
-            obj = tree.find('ishobject')
+            obj = tree.xpath('/ishobjects/ishobject')[0]
             object_guid = obj.attrib.get('ishref')
             try:
                 uuid.UUID(object_guid[5:])  # mask: GUID-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx

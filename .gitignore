@@ -1,13 +1,11 @@
-/marytreat/secret.py
-/fhpi*
 /venv/
-/misc/
 /.idea/
 /logs/
-# Nuitka artifacts
-marytreat.cmd
+*.csv
+*.txt
+# Created by the installer based on user directory location
 marytreat.bat
-marytreat.exe
-marytreat.build
-marytreat.dist
+# Looks confidential
 /marytreat/scripts/scitex.py
+/marytreat/scripts/step1.py
+/marytreat/secret.py
