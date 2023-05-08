@@ -8,6 +8,7 @@ import marytreat
 Logging
 """
 
+
 def create_log_file():
     root = os.path.dirname(marytreat.__file__)
     log_folder = os.path.join(root, 'logs')
@@ -54,7 +55,6 @@ class MaryLogger(logging.Logger):
 logging.setLoggerClass(MaryLogger)
 logger = logging.getLogger(__name__)
 
-
 """
 Auxiliary debugging functions
 """
@@ -67,6 +67,7 @@ def debug(func):
     def wrapper(*args, **kwargs):
         logger.debug('Running ' + name)
         return func(*args, **kwargs)
+
     return wrapper
 
 

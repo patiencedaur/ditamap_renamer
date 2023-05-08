@@ -27,7 +27,9 @@ class App(Tk):
         path_to_icon = os.path.join(
             os.path.dirname(
                 os.path.dirname(
-                    os.path.dirname(__file__))), 'marytreat.ico')
+                    os.path.dirname(
+                        os.path.abspath(__file__)))),
+            'marytreat.ico')  # ..\..\marytreat.ico
         self.iconbitmap(path_to_icon)
 
         tab_control = TabControl(self)

@@ -12,10 +12,6 @@ set thisdir=%~dp0
 
 pip install -r %cd%\requirements.txt
 
-echo Patching PYTHONPATH...
-
-
-
 echo Creating launcher...
 echo ^@echo off > marytreat.bat
 echo cd %thisdir% >> marytreat.bat
