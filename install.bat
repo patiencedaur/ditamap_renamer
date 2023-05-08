@@ -10,12 +10,17 @@ set thisdir=%~dp0
 
 @REM Make sure that the path to install.bat has no spaces in it. Otherwise an error will occur.
 
-pip install -r %thisdir%\requirements.txt
+pip install -r %cd%\requirements.txt
+
+echo Patching PYTHONPATH...
+
+
 
 echo Creating launcher...
 echo ^@echo off > marytreat.bat
 echo cd %thisdir% >> marytreat.bat
 echo python -m marytreat >> marytreat.bat
+echo pause >> marytreat.bat
 
 echo Creating desktop shortcut...
 
@@ -23,7 +28,8 @@ echo Set oWS = WScript.CreateObject("WScript.Shell") > CreateShortcut.vbs
 echo sLinkFile = "%OneDrive%\Desktop\MaryTreat.lnk" >> CreateShortcut.vbs
 echo Set oLink = oWS.CreateShortcut(sLinkFile) >> CreateShortcut.vbs
 echo oLink.TargetPath = "%thisdir%\marytreat.bat" >> CreateShortcut.vbs
-echo oLink.IconLocation = "%SystemRoot%\SystemResources\shell32.dll.mun, 91"
+echo oLink.IconLocation = "%thisdir%\marytreat.ico" >> CreateShortcut.vbs
+echo oLink.WorkingDirectory = "%thisdir%" >> CreateShortcut.vbs
 echo oLink.Save >> CreateShortcut.vbs
 cscript CreateShortcut.vbs
 del CreateShortcut.vbs
