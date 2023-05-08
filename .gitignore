@@ -1,8 +1,10 @@
+/__pycache__/
 /venv/
 /.idea/
 /logs/
 *.csv
 *.txt
+*.xlsx
 # Created by the installer based on user directory location
 marytreat.bat
 # Looks confidential
