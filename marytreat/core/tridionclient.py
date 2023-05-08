@@ -2,6 +2,7 @@ import base64
 import datetime
 import random
 import re
+from pathlib import Path
 from functools import wraps, reduce
 
 from lxml import etree
@@ -768,11 +769,13 @@ class Folder(BaseTridionDocsObject):
 @debugmethods
 @requires_token
 class Project:
-    folder_names = {('images', 'media', 'Images'): ('ISHIllustration', 'Image'),
-                    ('maps', 'Maps'): ('ISHMasterDoc', 'Map'),
-                    ('publications', 'Publications', 'publication'): ('ISHPublication', 'Publications'),
-                    ('topics', 'Topics'): ('ISHModule', 'Topic'),
-                    ('variables', 'Variables'): ('ISHLibrary', 'Library topic')}
+    folder_names = {
+        ('images', 'media', 'Images'): ('ISHIllustration', 'Image'),
+        ('maps', 'Maps', 'b_root_map'): ('ISHMasterDoc', 'Map'),
+        ('publications', 'Publications', 'publication', 'a_publication'): ('ISHPublication', 'Publications'),
+        ('topics', 'Topics'): ('ISHModule', 'Topic'),
+        ('variables', 'Variables'): ('ISHLibrary', 'Library topic')
+    }
 
     def __init__(self, name: str = None, id: str | int = None):
         logger.debug('Creating project:', locals())
@@ -925,13 +928,14 @@ class Project:
                     report = 'Shortdesc missing:\n' + topic_name + '\n'
                     warnings.append(report)
         if len(warnings) > 0:
+            status_file = Path.joinpath(Path.home(), self.name + '_titles_shortdescs.txt')
             msg = 'Project ' + self.name + ' not ready for Dynamic Delivery.' + \
                   '\n------------------------------------\n' + \
-                  'Status written to file ' + self.name + '_titles_shortdescs.txt.\n' + \
-                  'Problematic topics:\n'
+                  'Status written to file ' + str(status_file) + \
+                  '\nProblematic topics:\n\n'
             for warning in warnings:
                 msg = msg + warning + '\n'
-            with open(self.name + '_titles_shortdescs.txt', 'w') as f:
+            with open(status_file, 'w') as f:
                 f.write(msg)
         else:
             msg = 'Congratulations! All the titles and short descriptions are in place.'
@@ -1036,14 +1040,3 @@ def check_multiple_projects_for_titles_and_shortdescs(partno_list: list[str]):
         logger.info('Problematic topics:\n')
         for warning in warnings:
             logger.info(warning + '\n')
-
-
-if __name__ == '__main__':
-    project = Project()
-    if project:
-        project.complete_migration()
-
-    # pub_to_query = Publication(id='GUID-34D23F5B-F404-48FE-8EF5-3E41CC70DE2F')
-    # print(pub_to_query.get_hpi_pdf_metadata(Metadata(('fhpisecondarycolor', ''))))
-    # ditamap = Map(id='GUID-E45F673D-C1FA-4C88-96CA-5A4EABF8169A')
-    # decoded_tree = ditamap.get_decoded_content_as_tree()

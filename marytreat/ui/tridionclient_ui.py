@@ -5,7 +5,7 @@ from tkinter import messagebox
 from tkinter.ttk import Treeview
 
 from marytreat.core.constants import Constants
-from marytreat.core.mary_debug import logger, debugmethods
+from marytreat.core.mary_debug import logger
 from marytreat.core.mary_xml import XMLContent
 from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedTitleAndDescriptionChecker
 from marytreat.core.tridionclient import SearchRepository, Project
@@ -187,10 +187,9 @@ class ServerActionsTab(Frame):
             message = self.q.get_nowait()
             if message and message != -1:
                 self.pb.stopandhide()
-                # messagebox.showinfo('Titles and shortdescs', message)
                 messagebox.showinfo('Titles and shortdescs', message)
         except Empty:
-            self.after(100, self.check_queue_for_migration_completion)
+            self.after(100, self.check_queue_for_titles_and_shortdescs)
         except Exception as e:
             self.pb.stopandhide()
             self.q.put(-1)

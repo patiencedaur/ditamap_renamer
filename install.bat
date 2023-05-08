@@ -16,15 +16,18 @@ echo Creating launcher...
 echo ^@echo off > marytreat.bat
 echo cd %thisdir% >> marytreat.bat
 echo python -m marytreat >> marytreat.bat
-echo pause >> marytreat.bat
 
 echo Creating desktop shortcut...
 
 echo Set oWS = WScript.CreateObject("WScript.Shell") > CreateShortcut.vbs
-echo sLinkFile = "%OneDrive%\Desktop\MaryTreat.lnk" >> CreateShortcut.vbs
+echo Set oFileSystem = WScript.CreateObject("Scripting.FileSystemObject") >> CreateShortcut.vbs
+echo desktop = oWS.SpecialFolders("Desktop") >> CreateShortcut.vbs
+echo linkPathString = oFileSystem.GetAbsolutePathname(desktop) + "\MaryTreat.lnk" >> CreateShortcut.vbs
+echo sLinkFile = linkPathString >> CreateShortcut.vbs
 echo Set oLink = oWS.CreateShortcut(sLinkFile) >> CreateShortcut.vbs
-echo oLink.TargetPath = "%thisdir%\marytreat.bat" >> CreateShortcut.vbs
+echo oLink.TargetPath = "%thisdir%\marytreat.bat" >> CreateShortscut.vbs
 echo oLink.IconLocation = "%thisdir%\marytreat.ico" >> CreateShortcut.vbs
+@REM echo oLink.WindowStyle = 7 >> CreateShortcut.vbs
 echo oLink.WorkingDirectory = "%thisdir%" >> CreateShortcut.vbs
 echo oLink.Save >> CreateShortcut.vbs
 cscript CreateShortcut.vbs

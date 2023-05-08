@@ -65,4 +65,3 @@ class ThreadedMigrationCompletion(Thread):
     def run(self):
         self.project.complete_migration()
         self.q.put('Migration completed')
-
