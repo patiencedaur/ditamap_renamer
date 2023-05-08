@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE map PUBLIC "-//OASIS//DTD DITA Map//EN" "map.dtd"[]>
+<map id="GUID-37C79884-D706-455F-948E-6B0A32784F4F" xml:lang="en-US" xmlns:ditaarch="http://dita.oasis-open.org/architecture/2005/">
+    <topicmeta>
+        <metadata>
+            <category>deliverablemetadata</category>
+            <data name="documenttype" value="userguide" />
+            <data name="productname" value="How-to Guide" />
+        </metadata>
+        <metadata>
+            <category>publicationmetadata</category>
+            <data name="helpsysexpand1stleveltoc" value="no" />
+            <data name="htmlinordertopictoc" value="no" />
+            <data name="htmlpageastopic" value="no" />
+            <data name="htmlsuppresstopictoc" value="no" />
+            <data name="pdfinspgnumintopictoc" value="no" />
+            <data name="pdfnumbersections" value="no" />
+            <data name="pdfpagecountoptimized" value="yes" />
+            <data name="pdfsuppresslangcodefooter" value="no" />
+            <data name="pdfsuppressnumberchapter" value="no" />
+            <data name="pdfsuppressnumberfigure" value="no" />
+            <data name="pdfsuppressnumbertable" value="no" />
+            <data name="pdfsuppresspgnuminxref" value="yes" />
+            <data name="pdfsuppresstitlefooter" value="no" />
+            <data name="pdfsuppresstitleinxref" value="no" />
+            <data name="secondarycolor" value="bluehp2925c" />
+        </metadata>
+    </topicmeta>
+    <topicref href="GUID-33249F70-26CF-4864-89E2-8BE57CE26167">
+    <topicref href="GUID-844122C9-8F1F-4BD0-A452-9989352F9918" />
+    <topicref href="GUID-F0863DAB-4E19-4479-8768-43D7BE930410" />
+        <topicref href="GUID-2986F268-02AF-4BDA-8A50-3AA2B8BA8B21" />
+    <topicref href="GUID-85E7F49E-7592-465B-A6C3-428E9444B089">
+        <topicref href="GUID-DA183B50-F568-48DB-93CC-72FCF3CEA4CB" />
+        <topicref href="GUID-B9D0AEB7-C31A-4472-92CB-B7CB19E768B2" />
+        <topicref href="GUID-98691CB1-47CB-46C1-A7B7-5C9696416170" />
+    </topicref>
+</topicref></map>

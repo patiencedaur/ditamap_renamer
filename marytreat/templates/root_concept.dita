@@ -1,0 +1,18 @@
+<!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
+<concept id="id" xml:lang="en-US" outputclass="lpcontext">
+    <title></title>
+    <shortdesc>SHORT DESCRIPTION</shortdesc>
+    <prolog>
+        <metadata>
+            <category translate="no">deliverablemetadata</category>
+            <data name="figurelist" value="no"/>
+            <data name="tablelist" value="no"/>
+            <data name="videolist" value="no"/>
+            <data name="toclevels" value="5"/>
+            <data name="index" value="no"/>
+        </metadata>
+    </prolog>
+    <conbody>
+        <p/>
+    </conbody>
+</concept>

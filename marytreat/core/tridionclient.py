@@ -230,9 +230,16 @@ class Auth:
                 return ishlovvalue.attrib.get('ishref')
 
 
+class BaseTridionDocsObject:
+    """
+    'Glue' class to allow future tree work.
+    """
+    pass
+
+
 @debugmethods
 @requires_token
-class DocumentObject:
+class DocumentObject(BaseTridionDocsObject):
 
     def __init__(self, name: str = None, folder_id: int | str = None, id: str = None) -> None:
         if name and folder_id and not id:
@@ -240,8 +247,17 @@ class DocumentObject:
             self.folder_id = folder_id
         elif id and not name and not folder_id:
             self.id = id
+            self.name = None  # use get_name() in this case
         self.hostname = Constants.HOSTNAME + 'DocumentObj25.asmx?wsdl'
         self.service = Client(self.hostname, service_name='DocumentObj25', port_name='DocumentObj25Soap').service
+
+    def get_name(self):
+        if self.name is not None:
+            return self.name
+        else:
+            name_request_metadata = Metadata(('ftitle', ''))
+            name_response = self.get_metadata(name_request_metadata)
+            return name_response.dict_form.get('FTITLE').get('text')
 
     def __repr__(self) -> str:
         return '<' + self.id + '>'
@@ -342,7 +358,7 @@ class PDFObject(DocumentObject):
 
     def create(self):
         folder_type = 'ISHTemplate'
-        with open('templates/pdf_template.pdf', 'rb') as template:
+        with open('../templates/pdf.pdf', 'rb') as template:
             pbdata = template.read()
         author = Auth.get_dusername()
         request: str = Metadata(
@@ -357,17 +373,31 @@ class PDFObject(DocumentObject):
         id = response['psLogicalId']
         return id
 
-    def fill_initial_metadata(self):
-        initial_metadata = Metadata(
-            # IshField('FHPITOPICTITLE', self.name),
-            IshField('FHPIDISCLOSURELEVEL', '287477763180518087286275037723076'),
-            IshField('FHPIPRODUCT', '18576095'),
+    def fill_initial_metadata(self,
+                              disc_level='287477763180518087286275037723076',
+                              product='18576095',
+                              name=None,
+                              map_type=None
+                              ) -> None:
+        """
+        Default values are for Scitex PDF documents.
+        :param disc_level: Disclosure level code
+        :param product: Product code
+        :return: None
+        """
+        metadata = Metadata(
+            IshField('FHPIDISCLOSURELEVEL', disc_level),
+            IshField('FHPIPRODUCT', product),
             IshField('FHPIREGION', '205101142445494286415257'),
         )
-        if hasattr(self, 'name'):
-            initial_metadata += IshField('FHPITOPICTITLE', self.name)
+        if map_type:
+            metadata += IshField('FHPITEMPLATETYPE', map_type)
 
-        self.set_metadata(initial_metadata)
+        self.set_metadata(metadata)
+        if not name:
+            self.name = self.get_name()
+        # lng-level metadata needs to be set after logical level, otherwise it gets deleted in Tridion Docs
+        self.set_metadata(Metadata(IshField('FHPITOPICTITLE', self.name)))
 
 
 @requires_token
@@ -476,7 +506,7 @@ class Topic(DocumentObject):
 
 
 @requires_token
-class Publication:
+class Publication(BaseTridionDocsObject):
     disclosure_levels: dict[str, int | str] = {
         'For HP and Channel Partner Internal Use': 47406819852170807613486806879990,
         'HP and Customer Viewable': 287477763180518087286275037723076
@@ -596,7 +626,7 @@ class Publication:
 
 @debugmethods
 @requires_token
-class Folder:
+class Folder(BaseTridionDocsObject):
 
     def __init__(self, name: str = None, type: str = None, parent_id: int | str = None,
                  id: int | str = None, metadata: Metadata = Metadata([])):
@@ -740,7 +770,7 @@ class Folder:
 class Project:
     folder_names = {('images', 'media', 'Images'): ('ISHIllustration', 'Image'),
                     ('maps', 'Maps'): ('ISHMasterDoc', 'Map'),
-                    ('publications', 'Publications'): ('ISHPublication', 'Publications'),
+                    ('publications', 'Publications', 'publication'): ('ISHPublication', 'Publications'),
                     ('topics', 'Topics'): ('ISHModule', 'Topic'),
                     ('variables', 'Variables'): ('ISHLibrary', 'Library topic')}
 
@@ -769,7 +799,7 @@ class Project:
                     subfolders[name] = folder_obj
         return subfolders
 
-    def create_subfolder(self, folder_name: str): # -> dict[str, Folder] | None:
+    def create_subfolder(self, folder_name: str):  # -> dict[str, Folder] | None:
         if folder_name not in self.subfolders.keys():
             # if folder does not exist
             try:
@@ -827,7 +857,7 @@ class Project:
         topic_folder: Folder = reduce((lambda x, y: x or y),
                                       (map(self.subfolders.get, ('topics', 'Topics'))))
         var_folder: Folder = reduce((lambda x, y: x or y),
-                                      (map(self.subfolders.get, ('variables', 'Variables'))))
+                                    (map(self.subfolders.get, ('variables', 'Variables'))))
         var_guids: list[str] = var_folder.get_contents('ishobjects')
         libvar_sources: tuple[str, str] = topic_folder.locate_object_by_name_start('v_')
         try:

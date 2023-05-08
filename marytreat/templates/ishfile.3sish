@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ishobject ishtype="ISHModule">
+   <ishfields>
+      <ishfield name="FTITLE" level="logical" xml:space="preserve"></ishfield>
+      <ishfield name="VERSION" level="version" xml:space="preserve">1</ishfield>
+      <ishfield name="DOC-LANGUAGE" level="lng" xml:space="preserve">en-US</ishfield>
+      <ishfield name="FHPISEARCHABLE" level="logical" xml:space="preserve">Yes</ishfield>
+      <ishfield name="FMODULETYPE" level="logical" xml:space="preserve"></ishfield>
+   </ishfields>
+</ishobject>
