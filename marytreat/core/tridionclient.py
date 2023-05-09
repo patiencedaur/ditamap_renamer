@@ -2,6 +2,7 @@ import base64
 import datetime
 import random
 import re
+from copy import deepcopy
 from pathlib import Path
 from functools import wraps, reduce
 
@@ -231,6 +232,7 @@ class Auth:
                 return ishlovvalue.attrib.get('ishref')
 
 
+@requires_token
 class BaseTridionDocsObject:
     """
     'Glue' class to allow future tree work.
@@ -239,7 +241,6 @@ class BaseTridionDocsObject:
 
 
 @debugmethods
-@requires_token
 class DocumentObject(BaseTridionDocsObject):
 
     def __init__(self, name: str = None, folder_id: int | str = None, id: str = None) -> None:
@@ -253,12 +254,11 @@ class DocumentObject(BaseTridionDocsObject):
         self.service = Client(self.hostname, service_name='DocumentObj25', port_name='DocumentObj25Soap').service
 
     def get_name(self):
-        if self.name is not None:
-            return self.name
-        else:
+        if self.name is None:
             name_request_metadata = Metadata(('ftitle', ''))
             name_response = self.get_metadata(name_request_metadata)
-            return name_response.dict_form.get('FTITLE').get('text')
+            self.name = name_response.dict_form.get('FTITLE').get('text')
+        return self.name
 
     def __repr__(self) -> str:
         return '<' + self.id + '>'
@@ -274,7 +274,7 @@ class DocumentObject(BaseTridionDocsObject):
             'psOutXMLObjList']
         return Unpack.to_metadata(xml)
 
-    def get_folder(self) -> int | str:
+    def get_parent_folder_id(self) -> int | str:
         meta: dict = self.service.FolderLocation(token, self.id, peOutBaseFolder='Data')
         folder_id = meta['palOutFolderRefs']['long'][-1]
         return folder_id
@@ -346,6 +346,14 @@ class DocumentObject(BaseTridionDocsObject):
                          '- One of the languages is released, and you are no Administrator\n' +
                          '- One of the languages is checked out, and you are no Administrator')
 
+    def upload(self, data: bytes):
+        """
+        Encode and upload new content back to the server.
+        :param data: XML root
+        """
+        self.service.Update(token, psLogicalId=self.id, psVersion='1', psLanguage='en-US',
+                            psEdt='EDTXML', pbData=data)
+
 
 @debugmethods
 @requires_token
@@ -404,7 +412,10 @@ class PDFObject(DocumentObject):
 @requires_token
 class Map(DocumentObject):
 
-    def __init__(self, name: str = None, folder_id: str = None, id: str = None):
+    def __init__(self, name: str = None, folder_id: str = None, id: str = None,
+                 data=bytes('<?xml version="1.0" encoding="utf-8"?>\n' +
+                            '<!DOCTYPE map PUBLIC "-//OASIS//DTD DITA Map//EN" "map.dtd"[]>\n' +
+                            '<map></map>', 'utf-8'), map_type: str = None):
         """
         Usage:
         my_new_map = Map(name='My Awesome Map', folder_id='GUID-parent-folder-id')
@@ -413,34 +424,23 @@ class Map(DocumentObject):
         super().__init__(name, folder_id, id)
         self.type = 'ISHMasterDoc'
         if name and folder_id and not id:
-            self.id = self.create()
+            self.id = self.create(data, map_type)
 
-    def create(self) -> str:
+    def create(self, data, map_type) -> str:
         folder_type = 'ISHMasterDoc'
-        boilerplate = '<?xml version="1.0" encoding="utf-8"?>\n' + \
-                      '<!DOCTYPE map PUBLIC "-//OASIS//DTD DITA Map//EN" "map.dtd"[]><map />'
-        pbdata: bytes = bytes(boilerplate, 'utf-8')
         author = Auth.get_dusername()
-        request: str = Metadata(
+        request = Metadata(
             IshField('ftitle', self.name),
             IshField('fstatus', 'VSTATUSDRAFT'),
             IshField('fauthor', author),
-            # IshField('fmastertype', 'Troubleshooting')
-        ).pack
+        )
+        if map_type:
+            request += IshField('fmastertype', map_type)
         response = self.service.Create(token, self.folder_id, folder_type, psVersion='new',
                                        psLanguage='en-US',
-                                       psXMLMetadata=request, psEdt='EDTXML', pbData=pbdata)
+                                       psXMLMetadata=request.pack, psEdt='EDTXML', pbData=data)
         id = response['psLogicalId']
         return id
-
-    @property
-    def content_tree(self):
-        """
-        Analyzing the XMLContent of the map is easier/faster than using DocumentObj.GetChildren recursively.
-        Use this method to display the publication in the UI.
-        :return: what
-        """
-        return None
 
 
 @requires_token
@@ -491,22 +491,50 @@ class Topic(DocumentObject):
     def __init__(self, name: str = None, folder_id: int | str = None, id: str = None) -> None:
         super().__init__(name, folder_id, id)
 
-    def wrap_in_map(self):
+    def wrap_in_submap(self, root_map: Map, submap_type=None):
         """
-        Assert that the topic is part of a map.
-        Find out where to store maps.
-        (May involve asserting that the map is part of a publication,
-        the publication is part of a project,
-        and the project has subfolders, including the maps subfolder.)
-        Create a map object in the maps subfolder.
-        Edit the map XML contents so that it includes the new submap and it's right around the self topic.
-        Upload the map back to the server.
-        :return: Map
+        Create a map (submap) object in the maps subfolder.
+        Edit the root map XML contents so that it includes the new submap, which is wrapped right around the self topic.
+        Upload the root map back to the server.
+        :return: new submap
         """
-        pass
+
+        map_folder_id = root_map.get_parent_folder_id()
+        if not map_folder_id:
+            logger.exception('Map subfolder not found for root map ' + str(root_map))
+            raise Fault
+
+        root_map_content = root_map.get_decoded_content_as_tree()
+
+        self_xpath_in_root_map = '/map/topicref//topicref[@href="{}"]'.format(self.id)
+        self_topicref = root_map_content.xpath(self_xpath_in_root_map)[0]
+
+        # Put the new map into the server
+        new_map_name = 'm_' + self.get_name()[2:]
+        new_map_content = etree.Element('map')
+        new_map_content.insert(0, deepcopy(self_topicref))
+        new_map_string = etree.tostring(new_map_content, xml_declaration=True, encoding='utf-8',
+                                        doctype='<!DOCTYPE map PUBLIC "-//OASIS//DTD DITA Map//EN" "map.dtd"[]>')
+        new_map = Map(name=new_map_name, folder_id=map_folder_id,
+                      data=new_map_string, map_type=submap_type)
+
+        # Put the new map into the root map
+        new_map_topicref = etree.Element('topicref', attrib={
+            'href': new_map.id,
+            'format': 'ditamap'
+        })
+
+        parent_topicref = self_topicref.getparent()
+        parent_topicref.replace(self_topicref, new_map_topicref)
+        updated_root_map_data = etree.tostring(root_map_content,
+                                               xml_declaration=True, encoding='utf-8',
+                                               doctype='<!DOCTYPE map PUBLIC "-//OASIS//DTD DITA Map//EN" "map.dtd"[]>'
+        )
+        root_map.upload(data=updated_root_map_data)
+
+        return new_map
 
 
-@requires_token
 class Publication(BaseTridionDocsObject):
     disclosure_levels: dict[str, int | str] = {
         'For HP and Channel Partner Internal Use': 47406819852170807613486806879990,
@@ -847,7 +875,8 @@ class Project:
                          'Please check the Content Manager for missing/redundant files.')
 
     def get_or_create_root_map(self) -> Map:
-        map_folder: Folder = self.subfolders.get('maps') or self.subfolders.get('Maps')
+        map_folder: Folder = self.subfolders.get('maps') or self.subfolders.get('Maps') \
+                             or self.subfolders.get('b_root_map')
         map_name_and_guid: tuple[str, str] = map_folder.locate_object_by_name_start('rm_')
         if map_name_and_guid:
             map_obj = Map(id=map_name_and_guid[1])

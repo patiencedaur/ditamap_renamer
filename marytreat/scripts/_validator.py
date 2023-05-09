@@ -1,5 +1,8 @@
 import uuid
 from lxml import etree
+import re
+from sys import stdout
+from getpass import getpass
 
 
 def validate(user_input):
@@ -11,14 +14,19 @@ def validate(user_input):
             uuid.UUID(user_input[5:])  # mask: GUID-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
             return user_input
         except ValueError:
-            tree = etree.fromstring(user_input)  # Ctrl-C - Ctrl-V from Publication Manager
-            obj = tree.xpath('/ishobjects/ishobject')[0]
-            object_guid = obj.attrib.get('ishref')
             try:
-                uuid.UUID(object_guid[5:])  # mask: GUID-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-                return object_guid
-            except ValueError:
+                assert user_input.startswith('<ishobjects>')
+            except AssertionError:
                 return -1
+            finally:
+                ishobject_mask = r'(\<ishobjects\>\<ishobject\ ishtype=\"(.*?)\"\ ishref=\")(?P<GUID>.*?)\"'
+                match = re.search(ishobject_mask, user_input)
+                object_guid = match.group('GUID')
+                try:
+                    uuid.UUID(object_guid[5:])  # mask: GUID-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+                    return object_guid
+                except ValueError:
+                    return -1
 
 
 def get_guid(prompt):
