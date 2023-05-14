@@ -237,7 +237,9 @@ class BaseTridionDocsObject:
     """
     'Glue' class to allow future tree work.
     """
-    pass
+    name: str
+    folder_id: str
+    id: str | int
 
 
 @debugmethods
@@ -499,6 +501,9 @@ class Topic(DocumentObject):
         :return: new submap
         """
 
+        ### A submap needs a type not only as metadata, but also as part of the XML code, other.
+        ### Otherwise it won't publish. TODO: figure out how to add submap types
+
         map_folder_id = root_map.get_parent_folder_id()
         if not map_folder_id:
             logger.exception('Map subfolder not found for root map ' + str(root_map))
@@ -535,6 +540,7 @@ class Topic(DocumentObject):
         return new_map
 
 
+@requires_token
 class Publication(BaseTridionDocsObject):
     disclosure_levels: dict[str, int | str] = {
         'For HP and Channel Partner Internal Use': 47406819852170807613486806879990,
@@ -639,10 +645,10 @@ class Publication(BaseTridionDocsObject):
             ('fhpipagecountoptimized', 'VHPIPAGECOUNTOPTIMIZEDYES'),
             ('fhpichapterpagestart', 'VHPICHAPTERPAGESTARTNEXT.PAGE'),
             ('fhpinumberchapters', 'VHPINUMBERCHAPTERSYES'),
-            ('fhpisecondarycolor', 'VHPISECONDARYCOLORBLUE.HP.2172C')
-        ).pack
-        self.service.SetMetadata(token, self.id, psVersion=1, psXMLMetadata=meta,
-                                 psOutputFormat='HPI PDF', psLanguageCombination='en-US')
+            ('fhpisecondarycolor', 'VHPISECONDARYCOLORBLUE.HP.2172C'),
+            ('FHPISUPPRESSTITLEPAGE', 'VHPISUPPRESSTITLEPAGEYES')
+        )
+        self.set_metadata(meta, level='lng')
 
     def publish_to_portals(self):
         meta = Metadata(('fhpipublishtoportals', 'VHPIPUBLISHTOPORTALSYES')).pack
@@ -684,7 +690,11 @@ class Folder(BaseTridionDocsObject):
             self.type = self.metadata.dict_form.get('FDOCUMENTTYPE').get('text')
 
     def __repr__(self):
-        return 'Folder: (' + str(self.id) + ') ' + str(self.name)
+        r = '<Folder (' + str(self.id)
+        if self.name:
+            r = r + ' ' + str(self.name)
+        r += ')>'
+        return r
 
     def get_location(self) -> list[str | int]:
         response = self.service.FolderLocation(token, plFolderRef=self.id, peOutBaseFolder='Data')
@@ -733,7 +743,7 @@ class Folder(BaseTridionDocsObject):
             ishobjects: list[str] = Unpack.to_metadata(xml, 'ishobjects')
             return ishobjects
         elif not search_mode:
-            if self.get_type == 'None' or self.get_type == 'ISHNone':  # folder with folders
+            if self.get_type == 'None' or self.get_type == 'ISHNone' or self.get_type == 'VDOCTYPENONE':  # folder with folders
                 xml = self.service.GetSubFoldersByIshFolderRef(token, plFolderRef=self.id)['psOutXMLFolderList']
             else:
                 xml = self.service.GetContents(token, plFolderRef=self.id)['psOutXMLObjList']
@@ -900,7 +910,7 @@ class Project:
                          'Check the Content Manager')
             source_name, source_guid = None, None
         except AssertionError:
-            logger.warning("The libvar {var_guids[0]} was already migrated")
+            logger.warning("The libvar {} was already migrated".format(var_guids[0]))
             return
 
         try:

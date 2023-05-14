@@ -13,14 +13,14 @@ guid = get_guid('Enter publication GUID or copy the publication string here: ')
 pub = Publication(id=guid)
 print('Processing', pub, '...')
 pub.set_hpi_pdf_metadata()
+#
+# while True:
+#     is_customer_viewable = input('Should this project have a colored cover? y/n ')
+#     if is_customer_viewable == 'n':
+#         pub.set_metadata(Metadata(('FHPISUPPRESSTITLEPAGE', 'VHPISUPPRESSTITLEPAGENO')), level='lng')
+#         break
+#     elif is_customer_viewable == 'y':
+#         pub.set_metadata(Metadata(('FHPISUPPRESSTITLEPAGE', 'VHPISUPPRESSTITLEPAGEYES')), level='lng')
+#         break
 
-while True:
-    is_customer_viewable = input('Should this project have a colored cover? y/n ')
-    if is_customer_viewable == 'n':
-        pub.set_metadata(Metadata(('FHPISUPPRESSTITLEPAGE', 'VHPISUPPRESSTITLEPAGENO')), level='lng')
-        break
-    elif is_customer_viewable == 'y':
-        pub.set_metadata(Metadata(('FHPISUPPRESSTITLEPAGE', 'VHPISUPPRESSTITLEPAGEYES')), level='lng')
-        break
-
-print('Done!')
+print('HPI PDF output configured.')
