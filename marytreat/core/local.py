@@ -162,15 +162,18 @@ class LocalMap(LocalProjectFile):
     def check_project_folder_content(self):
         content_types = {}
         for fl in os.listdir(self.folder):
-            ext = fl.split('.')[-1]
+            basename, ext = fl.split('.')
             if ext not in content_types.keys():
-                content_types[ext] = [fl]
+                content_types[ext] = [basename]
             else:
-                content_types[ext].append(fl)
+                content_types[ext].append(basename)
         if '3sish' in content_types.keys():
             if len(content_types['dita']) != len(content_types['3sish']):
+                # list of ditas XOR list of 3sish
+                problematic_files = set(content_types['dita']) ^ set(content_types['3sish'])
                 logger.critical('Some DITA topics are missing their ISH files, or vice versa. ' +
-                                'Please check the contents of the folder: ' + self.folder)
+                                'Please check the contents of the folder:\n' +
+                                str(*problematic_files))
                 raise FileNotFoundError
             else:
                 logger.info('This project is derived from a Cheetah file')
@@ -322,10 +325,16 @@ class LocalMap(LocalProjectFile):
             new_name: str = img.generate_name(image_prefix)
             current_path: str = os.path.join(self.folder, img.href)
             new_path: str = os.path.join(self.image_folder, new_name)
-            if not os.path.exists(current_path) or os.path.exists(new_path):
-                logger.error('Current path does not exist or new path exists')
-                raise FileExistsError
-            logger.debug('New path: ' + new_path)
+            logger.debug('Renaming ' + current_path + ' to ' + new_path)
+            if current_path == new_path:
+                logger.debug('Image already renamed: ' + current_path)
+                continue
+            if not os.path.exists(current_path):
+                logger.warning('Image file to rename not found, skipping: ' + current_path)
+                continue
+            if os.path.exists(new_path):
+                logger.warning('File with the new name "' + new_path + '" already exists, skipping')
+                continue
             file_rename(current_path, new_path)
             # rename hrefs in topics
             if self.image_folder != self.folder:
@@ -601,6 +610,7 @@ class LocalTaskTopic(LocalTopic):
     def _cast(self):
         self.content.convert_to_task()
         self.write()
+
 
 @debugmethods
 class LocalISHFile(LocalProjectFile):

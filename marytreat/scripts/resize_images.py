@@ -21,7 +21,11 @@ reso_right_but_too_wide = []
 print('Analyzing images...')
 
 
-def magick_convert(image_list):
+def magick_convert(image_list, dummy=False):
+    """
+    :param image_list: list of PNGs to analyze and convert
+    :param dummy: for test runs
+    """
     for pngfile in image_list:
         try:
             magick_identify = ['magick', 'identify',
@@ -32,17 +36,19 @@ def magick_convert(image_list):
             if float(resolution) > 150 and float(width) > 70:  # filter out things like icons
                 print('Converting', pngfile, 'to 150 ppi...')
                 too_large.append((pngfile, resolution))
-                magick_density = ['magick', 'mogrify',
-                                  '-density', '150', '-units', 'PixelsPerInch',
-                                  os.path.join(images_folder, pngfile)]
-                subprocess.run(magick_density)
+                if not dummy:
+                    magick_density = ['magick', 'mogrify',
+                                      '-density', '150', '-units', 'PixelsPerInch',
+                                      os.path.join(images_folder, pngfile)]
+                    subprocess.run(magick_density)
             if 148 < float(resolution) <= 150 and float(width) > 600:
                 print('Converting', pngfile, 'to 4 inches wide...')
                 reso_right_but_too_wide.append((pngfile, width))
-                magick_resize = ['magick', 'mogrify',
-                                 '-resize', '600',
-                                 os.path.join(images_folder, pngfile)]
-                subprocess.run(magick_resize)
+                if not dummy:
+                    magick_resize = ['magick', 'mogrify',
+                                     '-resize', '600',
+                                     os.path.join(images_folder, pngfile)]
+                    subprocess.run(magick_resize)
         except Exception as e:
             print(e)
 
