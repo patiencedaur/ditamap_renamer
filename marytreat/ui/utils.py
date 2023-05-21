@@ -1,9 +1,23 @@
+from os import path
 from subprocess import Popen, PIPE
 from sys import exit
 from tkinter import Toplevel, Label, Text, Button
 from tkinter.ttk import Progressbar
 
 from marytreat.core.constants import Constants
+
+
+def get_icon():
+    """
+    :return: path to MaryTreat icon ..\..\marytreat.ico
+    """
+    path_to_icon = path.join(
+        path.dirname(
+            path.dirname(
+                path.dirname(
+                    path.abspath(__file__)))),
+        'marytreat.ico')
+    return path_to_icon
 
 
 class MaryProgressBar(Toplevel):

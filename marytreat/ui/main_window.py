@@ -3,6 +3,7 @@ import os
 from marytreat.core.constants import Constants
 from marytreat.ui.local_ui import LocalTab
 from marytreat.ui.tridionclient_ui import ServerActionsTab
+from marytreat.ui.utils import get_icon
 
 padding = Constants.PADDING.value
 
@@ -24,13 +25,7 @@ class App(Tk):
     def __init__(self):
         super().__init__()
         self.title('MaryTreat - HP Indigo Smart Content DITA Manager')
-        path_to_icon = os.path.join(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(
-                        os.path.abspath(__file__)))),
-            'marytreat.ico')  # ..\..\marytreat.ico
-        self.iconbitmap(path_to_icon)
+        self.iconbitmap(get_icon())
 
         tab_control = TabControl(self)
         tab_control.grid(row=0, column=0, sticky='nsew')

@@ -10,7 +10,7 @@ from marytreat.core import process_word
 import marytreat.core.local as l
 from marytreat.core.rename_flare_images import RenameImageFile
 from marytreat.core.threaded import ThreadedLocalMapFactory, ThreadedLocalTopicRenamer
-from marytreat.ui.utils import MaryProgressBar
+from marytreat.ui.utils import MaryProgressBar, get_icon
 from marytreat.core.mary_debug import logger
 
 padding = Constants.PADDING.value
@@ -163,6 +163,7 @@ class ImageNamesWindow:
         self.padding = {'padx': 5, 'pady': 5}
 
         self.top = Toplevel()
+        self.top.iconbitmap(get_icon())
         self.top.title = 'Mass edit image names'
 
         label_top_text = 'Enter a prefix associated with the document subject.'
@@ -201,6 +202,7 @@ class MissingItemsWindow(Tk):
     def __init__(self, ditamap):
 
         super().__init__()
+        self.iconbitmap(get_icon())
 
         self.ditamap = ditamap
         self.padding = {'padx': 7, 'pady': 7}

@@ -245,13 +245,14 @@ class BaseTridionDocsObject:
 @debugmethods
 class DocumentObject(BaseTridionDocsObject):
 
-    def __init__(self, name: str = None, folder_id: int | str = None, id: str = None) -> None:
+    def __init__(self, name: str | None = None,
+                 folder_id: int | str | None = None,
+                 id: str | None = None) -> None:
         if name and folder_id and not id:
             self.name = name
             self.folder_id = folder_id
         elif id and not name and not folder_id:
-            self.id = id
-            self.name = None  # use get_name() in this case
+            self.id = id  # use get_name() in this case
         self.hostname = Constants.HOSTNAME + 'DocumentObj25.asmx?wsdl'
         self.service = Client(self.hostname, service_name='DocumentObj25', port_name='DocumentObj25Soap').service
 
@@ -293,8 +294,8 @@ class DocumentObject(BaseTridionDocsObject):
             self.set_metadata(set_css)
 
         worldwide = '205101142445494286415257'
-        set_region: Metadata = Metadata(('fhpiregion', worldwide))
-        self.set_metadata(set_region)
+        consistent_metadata = Metadata(('fhpiregion', worldwide), ('fhpisearchable', 'yes'))
+        self.set_metadata(consistent_metadata)
 
         logger.info('Filled mandatory metadata for ' + str(self))
 
@@ -384,16 +385,18 @@ class PDFObject(DocumentObject):
         id = response['psLogicalId']
         return id
 
-    def fill_initial_metadata(self,
-                              disc_level='287477763180518087286275037723076',
-                              product='18576095',
-                              name=None,
-                              map_type=None
-                              ) -> None:
+    def fill_in_scitex_metadata(self,
+                                disc_level='287477763180518087286275037723076',
+                                product='18576095',
+                                name=None,
+                                map_type=None
+                                ) -> None:
         """
         Default values are for Scitex PDF documents.
         :param disc_level: Disclosure level code
         :param product: Product code
+        :param name: ex. 'Cleaning Anilox Rollers'
+        :param map_type: ex. 'troubleshootingmap'
         :return: None
         """
         metadata = Metadata(
@@ -501,8 +504,8 @@ class Topic(DocumentObject):
         :return: new submap
         """
 
-        ### A submap needs a type not only as metadata, but also as part of the XML code, other.
-        ### Otherwise it won't publish. TODO: figure out how to add submap types
+        # A submap needs a type not only as metadata, but also as part of the XML code, other.
+        # Otherwise it won't publish. TODO: figure out how to add submap types
 
         map_folder_id = root_map.get_parent_folder_id()
         if not map_folder_id:
@@ -534,7 +537,7 @@ class Topic(DocumentObject):
         updated_root_map_data = etree.tostring(root_map_content,
                                                xml_declaration=True, encoding='utf-8',
                                                doctype='<!DOCTYPE map PUBLIC "-//OASIS//DTD DITA Map//EN" "map.dtd"[]>'
-        )
+                                               )
         root_map.upload(data=updated_root_map_data)
 
         return new_map

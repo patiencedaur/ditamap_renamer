@@ -2,14 +2,14 @@ from queue import Queue, Empty
 from tkinter import Button, Radiobutton, Label, LabelFrame, Frame, StringVar, W, EW, NSEW, NORMAL, DISABLED, Toplevel
 from tkinter import Entry
 from tkinter import messagebox
-from tkinter.ttk import Treeview
+from tkinter.ttk import Treeview, Separator
 
 from marytreat.core.constants import Constants
 from marytreat.core.mary_debug import logger
 from marytreat.core.mary_xml import XMLContent
 from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedTitleAndDescriptionChecker
 from marytreat.core.tridionclient import SearchRepository, Project
-from marytreat.ui.utils import MaryProgressBar
+from marytreat.ui.utils import MaryProgressBar, get_icon
 
 padding = Constants.PADDING.value
 
@@ -126,18 +126,26 @@ class ServerActionsTab(Frame):
                                    command=self.call_manage_pub, state=DISABLED)  # submaps; mark for tagging
         button_manage_pub.grid(row=1, column=2, **padding, sticky=EW)
 
-        # button_check_tags = Button(self, text='Check Dynamic Delivery tags', state=DISABLED)
-        # button_check_tags.grid(row=2, column=1, **padding, sticky=EW)
-        #
-        # button_hpi_pdf = Button(self, text='HPI PDF publication...', state=DISABLED)
-        # button_hpi_pdf.grid(row=2, column=2, **padding, sticky=EW)
+        Separator(self, orient='horizontal').grid(row=2, column=0, columnspan=3, sticky=EW)
+
+        # Project-independent actions, don't require a search for the project
+
+        button_download_tag_values = Button(self, text='Download TMS values...',
+                                            command=lambda: DownloadTagValueWindow())
+        button_download_tag_values.grid(row=3, column=0, **padding, sticky=EW)
+
+        button_copy_tags = Button(self, text='Copy tags from object...',
+                                  command=lambda: CopyTagsWindow())
+        button_copy_tags.grid(row=3, column=1, **padding, sticky=EW)
+
+        button_wrap_in_map = Button(self, text='Wrap topic in map...',
+                                    command=lambda: WrapInMapWindow())
+        button_wrap_in_map.grid(row=3, column=2, **padding, sticky=EW)
 
         self.buttons = [
             button_cheetah_migration,
             button_check_titles_and_sd,
-            # button_manage_pub,
-            # button_check_tags,
-            # button_hpi_pdf
+            # button_manage_pub
         ]
 
         self.name_entry = search.p_name
@@ -256,17 +264,25 @@ class ManagePublication(Toplevel):
     # Allow wrapping context topics in submaps (and then adding tags)
 
 
-# class ConfigureHPIPDFTab(Frame):
-#
-#     def __init__(self, master):
-#         super().__init__(master)
-#         description_text = 'Set the necessary HPI PDF parameters for publishing.'
-#         description_label = Label(self, text=description_text, anchor=W)
-#         description_label.grid(row=0, column=0, columnspan=5, **padding, sticky=NSEW)
-#         search = SearchPartNumber(self)
-#         search.grid(row=1, column=0, rowspan=4, columnspan=4, **padding, sticky=NSEW)
-#         button_set_params = Button(self, text='Set parameters', command=self.call_set_params)
-#         button_set_params.grid(row=1, column=5, **padding, sticky=NSEW)
-#
-#     def call_set_params(self):
-#         pass
+class DownloadTagValueWindow(Toplevel):
+
+    def __init__(self):
+        super().__init__()
+        self.title('Download TMS values')
+        self.iconbitmap(get_icon())
+
+
+class CopyTagsWindow(Toplevel):
+
+    def __init__(self):
+        super().__init__()
+        self.title('Copy tags')
+        self.iconbitmap(get_icon())
+
+
+class WrapInMapWindow(Toplevel):
+
+    def __init__(self):
+        super().__init__()
+        self.title('Wrap topics in maps')
+        self.iconbitmap(get_icon())
