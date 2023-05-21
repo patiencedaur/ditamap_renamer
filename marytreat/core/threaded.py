@@ -65,3 +65,20 @@ class ThreadedMigrationCompletion(Thread):
     def run(self):
         self.project.complete_migration()
         self.q.put('Migration completed')
+
+
+class ThreadedTagDownload(Thread):
+
+    def __init__(self, tags: list['Tag'], q):
+        super().__init__(daemon=True)
+        self.tags = tags
+        self.q = q
+
+    def run(self):
+        from marytreat.core.tridionclient import Tag
+        csv_results = []
+        for tag in self.tags:
+            tag_value_file = tag.save_possible_values_to_file()
+            csv_results.append(tag_value_file)
+        self.q.put(csv_results)
+

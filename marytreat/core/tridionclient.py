@@ -5,6 +5,7 @@ import re
 from copy import deepcopy
 from pathlib import Path
 from functools import wraps, reduce
+from os import environ, path
 
 from lxml import etree
 from requests import Session
@@ -18,6 +19,8 @@ from marytreat.core.mary_xml import XMLContent
 """
 A Python client for SDL Tridion Docs. Created for HP Indigo by Dia Daur.
 """
+
+user_folder = environ['USERPROFILE']
 
 token = None
 
@@ -175,14 +178,14 @@ class Tag:
         self.name = name
         self.level = IshField.f.get(name.upper()).get('level').lower()
 
-    def save_possible_values_to_file(self) -> None:
+    def save_possible_values_to_file(self) -> str:
         xml = self.service.RetrieveTagStructure(token,
                                                 psFieldName=self.name.upper(),
                                                 psFieldLevel=self.level)['psXMLFieldTags']
         # with open('tag.xml', 'w', encoding='utf-8') as f:
         #     f.write(xml)
         root = Unpack.to_tree(xml)
-        filename = '../' + self.name + '-' + datetime.date.today().isoformat() + '.csv'
+        filename = path.join(user_folder, self.name + '-' + datetime.date.today().isoformat() + '.csv')
         with open(filename, 'w', encoding='utf-8') as dest:
             for tag in root.iter('tag'):
                 selectable = tag.find('selectable').text
@@ -191,6 +194,7 @@ class Tag:
                 key = tag.find('label').text
                 value = tag.attrib.get('id')
                 dest.write(str(key).rstrip() + ',' + '\t"' + str(value).rstrip() + '"\n')
+        return filename
 
 
 @requires_token

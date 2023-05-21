@@ -8,8 +8,8 @@ from marytreat.core.constants import Constants
 from marytreat.core.mary_debug import logger
 from marytreat.core.mary_xml import XMLContent
 from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion
-from marytreat.core.threaded import ThreadedTitleAndDescriptionChecker
-from marytreat.core.tridionclient import SearchRepository, Project
+from marytreat.core.threaded import ThreadedTitleAndDescriptionChecker, ThreadedTagDownload
+from marytreat.core.tridionclient import SearchRepository, Project, Tag
 from marytreat.ui.utils import MaryProgressBar, get_icon
 
 padding = Constants.PADDING.value
@@ -285,18 +285,42 @@ class DownloadTagValueWindow(Toplevel):
         download_button = Button(self, text='Download', command=self.call_download_values)
         download_button.grid(row=4, column=0, **padding, sticky=EW)
 
+        self.q = Queue()
+        self.pb = MaryProgressBar()
+
     def call_download_values(self):
+        if all(val == 0 for val in [self.get_css.get(), self.get_product.get(), self.get_hardware.get()]):
+            messagebox.showinfo('Please check at least one box.')
+            return
+
         requested_values = []
         if self.get_css.get() == 1:
-            requested_values.append(self.get_css.get())
+            requested_values.append(Tag('fhpicustomersupportstories'))
         if self.get_product.get() == 1:
-            requested_values.append(self.get_product.get())
+            requested_values.append(Tag('fhpiproduct'))
         if self.get_hardware.get() == 1:
-            requested_values.append(self.get_hardware.get())
-        print(requested_values)
+            requested_values.append(Tag('fhpihardwarecomponents'))
+
+        self.pb.start()
+        t = ThreadedTagDownload(requested_values, self.q)
+        t.start()
+        self.after(300, self.check_queue_if_values_downloaded)
 
     def check_queue_if_values_downloaded(self):
-        pass
+        try:
+            file_list = self.q.get_nowait()
+            if file_list and file_list != -1:
+                self.pb.stopandhide()
+                msg = 'Downloaded values to file(s):\n'
+                for fl in file_list:
+                    msg = msg + fl + '\n'
+                messagebox.showinfo('Value tables downloaded', msg)
+        except Empty:
+            self.after(100, self.check_queue_if_values_downloaded)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)
 
 
 class CopyTagsWindow(Toplevel):
@@ -332,6 +356,10 @@ class CopyTagsWindow(Toplevel):
         Button(self, text='Copy', command=self.call_copy_tags).grid(
             row=5, column=0, columnspan=3, **padding, sticky=W)
 
+        self.q = Queue()
+        self.pb = MaryProgressBar()
+
+
     def call_copy_tags(self):
         pass
 
@@ -345,6 +373,9 @@ class WrapInMapWindow(Toplevel):
         super().__init__()
         self.title('Wrap topics in maps')
         self.iconbitmap(get_icon())
+
+        self.q = Queue()
+        self.pb = MaryProgressBar()
 
         self.context_topic = StringVar()
 
