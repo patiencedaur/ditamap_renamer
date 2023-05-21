@@ -1,13 +1,14 @@
 from queue import Queue, Empty
 from tkinter import Button, Radiobutton, Label, LabelFrame, Frame, StringVar, W, EW, NSEW, NORMAL, DISABLED, Toplevel
-from tkinter import Entry
+from tkinter import Entry, Checkbutton, IntVar
 from tkinter import messagebox
 from tkinter.ttk import Treeview, Separator
 
 from marytreat.core.constants import Constants
 from marytreat.core.mary_debug import logger
 from marytreat.core.mary_xml import XMLContent
-from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedTitleAndDescriptionChecker
+from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion
+from marytreat.core.threaded import ThreadedTitleAndDescriptionChecker
 from marytreat.core.tridionclient import SearchRepository, Project
 from marytreat.ui.utils import MaryProgressBar, get_icon
 
@@ -22,7 +23,7 @@ STRIPED_SQUARE = '\u9636 '
 class NarrowDownLocation(LabelFrame):
 
     def __init__(self, master):
-        super().__init__(master, text='What to search')
+        super().__init__(master, text='Search in press series or DFE')
         self.part_type = StringVar()
 
         buttons = ['3', '4', '5', '6', 'Common in Presses', 'DFE']
@@ -271,6 +272,32 @@ class DownloadTagValueWindow(Toplevel):
         self.title('Download TMS values')
         self.iconbitmap(get_icon())
 
+        self.get_css, self.get_product, self.get_hardware = IntVar(), IntVar(), IntVar()
+
+        check_css = Checkbutton(self, text='Customer Support Stories', variable=self.get_css)
+        check_product = Checkbutton(self, text='Product values', variable=self.get_product)
+        check_hardware = Checkbutton(self, text='Hardware values', variable=self.get_hardware)
+
+        check_css.grid(row=0, column=0, sticky=W)
+        check_product.grid(row=1, column=0, sticky=W)
+        check_hardware.grid(row=2, column=0, sticky=W)
+
+        download_button = Button(self, text='Download', command=self.call_download_values)
+        download_button.grid(row=4, column=0, **padding, sticky=EW)
+
+    def call_download_values(self):
+        requested_values = []
+        if self.get_css.get() == 1:
+            requested_values.append(self.get_css.get())
+        if self.get_product.get() == 1:
+            requested_values.append(self.get_product.get())
+        if self.get_hardware.get() == 1:
+            requested_values.append(self.get_hardware.get())
+        print(requested_values)
+
+    def check_queue_if_values_downloaded(self):
+        pass
+
 
 class CopyTagsWindow(Toplevel):
 
@@ -279,6 +306,38 @@ class CopyTagsWindow(Toplevel):
         self.title('Copy tags')
         self.iconbitmap(get_icon())
 
+        self.tag_source = StringVar()
+        self.tag_destination = StringVar()
+
+        Label(self, text='Enter the object from which to copy tags:').grid(row=0, column=0, **padding, sticky=W)
+        Entry(self, textvariable=self.tag_source).grid(row=1, column=0, columnspan=3, **padding, sticky=EW)
+
+        Label(self, text='Enter the destination object:').grid(row=2, column=0, **padding, sticky=W)
+        Entry(self, textvariable=self.tag_destination).grid(row=3, column=0, columnspan=3, **padding, sticky=EW)
+
+        what_tags = LabelFrame(self, text='Tags to copy')
+        what_tags.grid(row=4, column=0, columnspan=3, **padding, sticky=W)
+
+        self.copy_css = IntVar()
+        self.copy_product = IntVar()
+
+        check_css = Checkbutton(what_tags, text='Customer Support Stories', variable=self.copy_css)
+        check_product = Checkbutton(what_tags, text='Product values', variable=self.copy_product)
+        # check_hardware = Checkbutton(what_tags, text='Hardware values', variable=self.get_hardware)
+
+        check_css.grid(row=0, column=0, sticky=W)
+        check_product.grid(row=1, column=0, sticky=W)
+        # check_hardware.grid(row=2, column=0, sticky=W)
+
+        Button(self, text='Copy', command=self.call_copy_tags).grid(
+            row=5, column=0, columnspan=3, **padding, sticky=W)
+
+    def call_copy_tags(self):
+        pass
+
+    def check_queue_if_copied_tags(self):
+        pass
+
 
 class WrapInMapWindow(Toplevel):
 
@@ -286,3 +345,17 @@ class WrapInMapWindow(Toplevel):
         super().__init__()
         self.title('Wrap topics in maps')
         self.iconbitmap(get_icon())
+
+        self.context_topic = StringVar()
+
+        Label(self, text='Enter context topic to surround with map:').grid(row=0, column=0, sticky=W)
+        Entry(self, textvariable=self.context_topic).grid(row=1, column=0, columnspan=2, **padding, sticky=EW)
+
+        Button(self, text='Go', command=self.call_wrap_in_map).grid(
+            row=2, column=0, **padding, sticky=EW)
+
+    def call_wrap_in_map(self):
+        pass
+
+    def check_queue_if_wrapped_in_map(self):
+        pass
