@@ -257,11 +257,12 @@ class DocumentObject(BaseTridionDocsObject):
             self.folder_id = folder_id
         elif id and not name and not folder_id:
             self.id = id  # use get_name() in this case
+            self.name = None
         self.hostname = Constants.HOSTNAME + 'DocumentObj25.asmx?wsdl'
         self.service = Client(self.hostname, service_name='DocumentObj25', port_name='DocumentObj25Soap').service
 
     def get_name(self):
-        if self.name is None:
+        if getattr(self, 'name') is None:
             name_request_metadata = Metadata(('ftitle', ''))
             name_response = self.get_metadata(name_request_metadata)
             self.name = name_response.dict_form.get('FTITLE').get('text')

@@ -1,9 +1,9 @@
 import _initialize
 from marytreat.core.tridionclient import DocumentObject
-from _validator import get_guid
+from _validator import get_guid_from_cli
 
 
-guid = get_guid('Enter object to copy metadata from: ')
+guid = get_guid_from_cli('Enter object to copy metadata from: ')
 
 src_obj = DocumentObject(id=guid)
 fhpiproduct, fhpicss, fhpiregion = src_obj.get_current_dynamic_delivery_metadata()
@@ -22,7 +22,7 @@ print('\nTarget objects are the objects to copy the metadata to.\n',
       'Input the GUIDs or copied strings of target object. Press Enter after every item.\n',
       'When you are done, print "done" in the command line.\n')
 while True:
-    target_id = get_guid('Enter target object or "done": ')
+    target_id = get_guid_from_cli('Enter target object or "done": ')
     if target_id == 'done' or target_id == '"done"':
         break
     elif target_id:

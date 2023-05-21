@@ -1,7 +1,7 @@
 import _initialize
 
 from marytreat.core.tridionclient import Map, Topic
-from _validator import get_guid
+from _validator import get_guid_from_cli
 
 """
 Wraps a topic in a map.
@@ -11,8 +11,8 @@ after every run. You will see the new map appear in the publication tree.
 Check out the root map to make the small yellow triangle disappear.
 """
 
-root_map_guid = get_guid('Enter root map guid or data: ')
-topic_guid = get_guid('Enter topic guid or data: ')
+root_map_guid = get_guid_from_cli('Enter root map guid or data: ')
+topic_guid = get_guid_from_cli('Enter topic guid or data: ')
 
 root_map = Map(id=root_map_guid)
 topic = Topic(id=topic_guid)

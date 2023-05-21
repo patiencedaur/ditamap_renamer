@@ -7,10 +7,10 @@ from tkinter.ttk import Treeview, Separator
 from marytreat.core.constants import Constants
 from marytreat.core.mary_debug import logger
 from marytreat.core.mary_xml import XMLContent
-from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion
-from marytreat.core.threaded import ThreadedTitleAndDescriptionChecker, ThreadedTagDownload
-from marytreat.core.tridionclient import SearchRepository, Project, Tag
-from marytreat.ui.utils import MaryProgressBar, get_icon
+from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedMetadataDuplicator
+from marytreat.core.threaded import ThreadedTitleAndDescriptionChecker, ThreadedTagDownload, ThreadedSubmapGenerator
+from marytreat.core.tridionclient import SearchRepository, Project, Tag, Topic, Map
+from marytreat.ui.utils import MaryProgressBar, get_icon, validate
 
 padding = Constants.PADDING.value
 
@@ -290,7 +290,7 @@ class DownloadTagValueWindow(Toplevel):
 
     def call_download_values(self):
         if all(val == 0 for val in [self.get_css.get(), self.get_product.get(), self.get_hardware.get()]):
-            messagebox.showinfo('Please check at least one box.')
+            messagebox.showinfo('Empty checkboxes', 'Please check at least one box.')
             return
 
         requested_values = []
@@ -333,17 +333,18 @@ class CopyTagsWindow(Toplevel):
         self.tag_source = StringVar()
         self.tag_destination = StringVar()
 
-        Label(self, text='Enter the object from which to copy tags:').grid(row=0, column=0, **padding, sticky=W)
-        Entry(self, textvariable=self.tag_source).grid(row=1, column=0, columnspan=3, **padding, sticky=EW)
+        Label(self, text='Source object (from which to copy tags)').grid(row=0, column=0, **padding, sticky=W)
+        Entry(self, textvariable=self.tag_source, width=70).grid(row=1, column=0, columnspan=3, **padding, sticky=EW)
 
-        Label(self, text='Enter the destination object:').grid(row=2, column=0, **padding, sticky=W)
-        Entry(self, textvariable=self.tag_destination).grid(row=3, column=0, columnspan=3, **padding, sticky=EW)
+        Label(self, text='Target object').grid(row=2, column=0, **padding, sticky=W)
+        Entry(self, textvariable=self.tag_destination, width=70).grid(row=3, column=0, columnspan=3, **padding, sticky=EW)
 
         what_tags = LabelFrame(self, text='Tags to copy')
         what_tags.grid(row=4, column=0, columnspan=3, **padding, sticky=W)
 
         self.copy_css = IntVar()
         self.copy_product = IntVar()
+        # self.copy_hardware = IntVar()
 
         check_css = Checkbutton(what_tags, text='Customer Support Stories', variable=self.copy_css)
         check_product = Checkbutton(what_tags, text='Product values', variable=self.copy_product)
@@ -354,39 +355,107 @@ class CopyTagsWindow(Toplevel):
         # check_hardware.grid(row=2, column=0, sticky=W)
 
         Button(self, text='Copy', command=self.call_copy_tags).grid(
-            row=5, column=0, columnspan=3, **padding, sticky=W)
+            row=5, column=0, columnspan=3, **padding, sticky=EW)
 
         self.q = Queue()
         self.pb = MaryProgressBar()
 
-
     def call_copy_tags(self):
-        pass
+        if all(val == 0 for val in [self.copy_css.get(), self.copy_product.get()]):
+            messagebox.showinfo('Empty checkboxes', 'Please check at least one box.')
+            return
+        if not self.tag_destination.get() or not self.tag_source.get():
+            messagebox.showinfo('No objects', 'Please specify both the tag source and destination.')
+            return
+
+        src_id = validate(self.tag_source.get())
+        if src_id == -1:
+            messagebox.showinfo('Object not found', 'Please enter a valid GUID of the source object. '
+                                'Alternatively, Ctrl-C & Ctrl-V the object from Publication Manager.')
+            return
+
+        dest_id = validate(self.tag_destination.get())
+        if dest_id == -1:
+            messagebox.showinfo('Object not found', 'Please enter a valid GUID of the target object. '
+                                'Alternatively, Ctrl-C & Ctrl-V the object from Publication Manager.')
+            return
+
+        self.pb.start()
+        t = ThreadedMetadataDuplicator(src_id,
+                                       dest_id,
+                                       self.q,
+                                       copy_product=self.copy_product.get(),
+                                       copy_css=self.copy_css.get())
+        t.start()
+        self.after(300, self.check_queue_if_copied_tags)
 
     def check_queue_if_copied_tags(self):
-        pass
+        try:
+            source_and_dest = self.q.get_nowait()
+            if source_and_dest and source_and_dest != -1:
+                self.pb.stopandhide()
+                msg = 'Tags copied from {} to {}.'.format(str(source_and_dest[0]), str(source_and_dest[1]))
+                messagebox.showinfo('Success', msg)
+        except Empty:
+            self.after(100, self.check_queue_if_copied_tags)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)
 
 
 class WrapInMapWindow(Toplevel):
 
     def __init__(self):
         super().__init__()
-        self.title('Wrap topics in maps')
+        self.title('Wrap topic in map')
         self.iconbitmap(get_icon())
 
         self.q = Queue()
         self.pb = MaryProgressBar()
 
         self.context_topic = StringVar()
+        self.root_map = StringVar()
 
-        Label(self, text='Enter context topic to surround with map:').grid(row=0, column=0, sticky=W)
-        Entry(self, textvariable=self.context_topic).grid(row=1, column=0, columnspan=2, **padding, sticky=EW)
+        Label(self, text='Target context topic').grid(row=0, column=0, sticky=W)
+        Entry(self, textvariable=self.context_topic, width=70).grid(row=1, column=0, columnspan=2, **padding, sticky=EW)
+
+        Label(self, text='Root map').grid(row=2, column=0, sticky=W)
+        Entry(self, textvariable=self.root_map, width=70).grid(row=3, column=0, columnspan=2, **padding, sticky=EW)
+
+        Label(self, text='Please make sure that your root map is checked in.').grid(row=4, column=0, columnspan=2,
+                                                                                    **padding, sticky=W)
 
         Button(self, text='Go', command=self.call_wrap_in_map).grid(
-            row=2, column=0, **padding, sticky=EW)
+            row=5, column=0, **padding, sticky=EW)
 
     def call_wrap_in_map(self):
-        pass
+        if not self.context_topic.get() or not self.root_map.get():
+            messagebox.showinfo('No objects', 'Please specify the context topic and its root map.')
+            return
+
+        topic_id = validate(self.context_topic.get())
+        map_id = validate(self.root_map.get())
+        if topic_id == -1 or map_id == -1:
+            messagebox.showinfo('Objects not found', 'Please enter valid GUIDs. ' +
+                                'Alternatively, Ctrl-C & Ctrl-V an object from Publication Manager.')
+            return
+
+        self.pb.start()
+        t = ThreadedSubmapGenerator(Topic(id=topic_id), Map(id=map_id), self.q)
+        t.start()
+        self.after(100, self.check_queue_if_wrapped_in_map)
 
     def check_queue_if_wrapped_in_map(self):
-        pass
+        try:
+            submap = self.q.get_nowait()
+            if submap and submap != -1:
+                self.pb.stopandhide()
+                msg = 'New map {} added to root map.'.format(str(submap))
+                messagebox.showinfo('Success', msg)
+        except Empty:
+            self.after(100, self.check_queue_if_wrapped_in_map)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)

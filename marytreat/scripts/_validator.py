@@ -29,7 +29,7 @@ def validate(user_input):
                     return -1
 
 
-def get_guid(prompt):
+def get_guid_from_cli(prompt):
     """
     Validate input as GUID or ishobject string.
     :param prompt: A prompt that explains to the user what they need to enter

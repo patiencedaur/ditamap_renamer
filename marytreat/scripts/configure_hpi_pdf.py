@@ -1,6 +1,6 @@
 import _initialize
 from marytreat.core.tridionclient import Publication, Metadata
-from _validator import get_guid
+from _validator import get_guid_from_cli
 
 """
 Fill in metadata for an existing HPI PDF publication output format.
@@ -8,7 +8,7 @@ This script is a workaround for a bug in Publication Manager
 that hides dropdown menus when the screen is zoomed to 150%. 
 """
 
-guid = get_guid('Enter publication GUID or copy the publication string here: ')
+guid = get_guid_from_cli('Enter publication GUID or copy the publication string here: ')
 
 pub = Publication(id=guid)
 print('Processing', pub, '...')
