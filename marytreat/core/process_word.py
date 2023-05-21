@@ -4,7 +4,7 @@ from shutil import copy2
 
 from docx import Document
 
-from marytreat import core as l
+from marytreat.core import local as l
 
 
 def clear_drawing_descriptions(document):

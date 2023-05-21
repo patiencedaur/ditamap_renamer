@@ -8,6 +8,8 @@
 # Created by the installer based on user directory location
 marytreat.bat
 # Looks confidential
-/marytreat/scripts/scitex.py
 /marytreat/scripts/step1.py
 /marytreat/secret.py
+scitex*
+_scitex*
+Scripts/

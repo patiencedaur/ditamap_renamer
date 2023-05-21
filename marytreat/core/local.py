@@ -136,7 +136,10 @@ class LocalMap(LocalProjectFile):
             case 'cheetah':
                 self.image_folder = self.folder
             case 'word':
-                self.image_folder = self.folder + os.sep + 'media'
+                possible_img_folders = ['media', 'images']
+                self.image_folder = next((fldr for fldr in possible_img_folders
+                                          if os.path.isdir(os.path.join(self.folder, fldr))),
+                                         self.folder)
         self.images = self.get_images()
         self.ditamap = self
         self.topics = self.get_topics()
@@ -160,19 +163,34 @@ class LocalMap(LocalProjectFile):
     }
 
     def check_project_folder_content(self):
+        """
+        Analyzes the contents of the folder with the ditamap and determines where the project came from
+        based on that analysis.
+
+        A 'cheetah' project is the output of a Cheetah-to-DITA proprietary HP converter.
+        Cheetah was a proprieraty HP documentation framework.
+
+        A 'word' project is the output of Oxygen XML batch Word to DITA converter.
+
+        :return: project type - 'cheetah' or 'word'
+        """
         content_types = {}
         for fl in os.listdir(self.folder):
+            if os.path.isdir(fl):
+                print('meow')
+                continue
             basename, ext = fl.split('.')
             if ext not in content_types.keys():
                 content_types[ext] = [basename]
             else:
                 content_types[ext].append(basename)
-        if '3sish' in content_types.keys():
+        i_am_from_cheetah = '3sish' in content_types.keys()
+        if i_am_from_cheetah:
             if len(content_types['dita']) != len(content_types['3sish']):
                 # list of ditas XOR list of 3sish
                 problematic_files = set(content_types['dita']) ^ set(content_types['3sish'])
                 logger.critical('Some DITA topics are missing their ISH files, or vice versa. ' +
-                                'Please check the contents of the folder:\n' +
+                                'The following files have no pair:\n' +
                                 str(*problematic_files))
                 raise FileNotFoundError
             else:
