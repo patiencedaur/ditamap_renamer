@@ -1,4 +1,4 @@
-import os, subprocess
+import os, subprocess, msvcrt
 
 """
 Requires ImageMagick installed.
@@ -41,12 +41,12 @@ def magick_convert(image_list, dummy=False):
                                       '-density', '150', '-units', 'PixelsPerInch',
                                       os.path.join(images_folder, pngfile)]
                     subprocess.run(magick_density)
-            if 148 < float(resolution) <= 150 and float(width) > 600:
-                print('Converting', pngfile, 'to 4 inches wide...')
+            if 148 < float(resolution) <= 150 and float(width) > 675:
+                print('Converting', pngfile, 'to 4.5 inches wide...')
                 reso_right_but_too_wide.append((pngfile, width))
                 if not dummy:
                     magick_resize = ['magick', 'mogrify',
-                                     '-resize', '600',
+                                     '-resize', '675',
                                      os.path.join(images_folder, pngfile)]
                     subprocess.run(magick_resize)
         except Exception as e:
@@ -58,4 +58,6 @@ magick_convert(pngs)  # The second run catches too-wide files that weren't 150 p
 
 print()
 print('Converted', len(too_large), 'files with resolution larger than 150.')
-print('Converted', len(reso_right_but_too_wide), 'files that were wider than ~4 inches.')
+print('Converted', len(reso_right_but_too_wide), 'files that were wider than ~4.5 inches.')
+
+msvcrt.getch()
