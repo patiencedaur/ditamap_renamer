@@ -285,6 +285,7 @@ class DownloadTagValueWindow(Toplevel):
         download_button = Button(self, text='Download', command=self.call_download_values)
         download_button.grid(row=4, column=0, **padding, sticky=EW)
 
+        self.grab_set()
         self.q = Queue()
         self.pb = MaryProgressBar()
 
@@ -357,6 +358,12 @@ class CopyTagsWindow(Toplevel):
         Button(self, text='Copy', command=self.call_copy_tags).grid(
             row=5, column=0, columnspan=3, **padding, sticky=EW)
 
+        self.grab_set()
+        messagebox.showwarning('This might not work',
+                               'The Copy Tags functionality depends on the remote TMS server operation.\n'
+                               'In case of errors on the remote server, Copy Tags will not work, '
+                               'and MaryTreat will close.\n\nUse the Copy Tags functionality '
+                               'at your own discretion.')
         self.q = Queue()
         self.pb = MaryProgressBar()
 
@@ -428,6 +435,8 @@ class WrapInMapWindow(Toplevel):
 
         Button(self, text='Go', command=self.call_wrap_in_map).grid(
             row=5, column=0, **padding, sticky=EW)
+
+        self.grab_set()
 
     def call_wrap_in_map(self):
         if not self.context_topic.get() or not self.root_map.get():
