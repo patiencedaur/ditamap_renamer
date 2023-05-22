@@ -1,7 +1,7 @@
 from setuptools import setup
 
 name = 'MaryTreat'
-version = '1.0.0'
+version = '1.0.1'
 
 setup(
     name=name,

@@ -132,14 +132,13 @@ class LocalMap(LocalProjectFile):
     def __init__(self, file_path):
         super().__init__(file_path)
         self.source = self.check_project_folder_content()
-        match self.source:
-            case 'cheetah':
-                self.image_folder = self.folder
-            case 'word':
-                possible_img_folders = ['media', 'images']
-                self.image_folder = next((fldr for fldr in possible_img_folders
-                                          if os.path.isdir(os.path.join(self.folder, fldr))),
-                                         self.folder)
+        self.image_folder = self.folder
+        if self.source == 'word':
+            possible_img_folders = ['media', 'images']
+            for fldr in possible_img_folders:
+                name_candidate = os.path.join(self.folder, fldr)
+                if os.path.isdir(name_candidate):
+                    self.image_folder = name_candidate
         self.images = self.get_images()
         self.ditamap = self
         self.topics = self.get_topics()
@@ -176,9 +175,9 @@ class LocalMap(LocalProjectFile):
         """
         content_types = {}
         for fl in os.listdir(self.folder):
-            if os.path.isdir(fl):
-                print('meow')
+            if '.' not in fl:
                 continue
+            print(fl)
             basename, ext = fl.split('.')
             if ext not in content_types.keys():
                 content_types[ext] = [basename]
@@ -366,7 +365,11 @@ class LocalMap(LocalProjectFile):
                 topic.write()
 
     def create_root_concept(self, title='How-to Guide'):
-        template_path = 'templates/root_concept.dita'
+        template_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'templates',
+            'root_concept.dita'
+        )
         concept_filename = 'root_' + self.basename + '.dita'
         concept_path = os.path.join(self.folder, concept_filename)
         copy2(template_path, concept_path)

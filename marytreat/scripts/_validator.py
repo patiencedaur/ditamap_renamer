@@ -21,7 +21,11 @@ def validate(user_input):
             finally:
                 ishobject_mask = r'(\<ishobjects\>\<ishobject\ ishtype=\"(.*?)\"\ ishref=\")(?P<GUID>.*?)\"'
                 match = re.search(ishobject_mask, user_input)
-                object_guid = match.group('GUID')
+                try:
+                    object_guid = match.group('GUID')
+                except AttributeError:
+                    print('You may have copied the wrong string. Try again.')
+                    return -1
                 try:
                     uuid.UUID(object_guid[5:])  # mask: GUID-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
                     return object_guid

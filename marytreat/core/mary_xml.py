@@ -253,7 +253,8 @@ class XMLContent:
             p_tags = body.findall('p')
             future_title = p_tags[0]
             future_shortdesc = p_tags[1].find('b')
-            logger.debug(future_title.text, future_shortdesc.text)
+            logger.debug('Future title: ' + future_title.text)
+            logger.debug('Future shortdesc: ' + future_shortdesc.text)
             self.set_title(future_title.text)
             self.set_shortdesc(future_shortdesc.text)
             for i in range(2):
