@@ -7,9 +7,10 @@
 *.xlsx
 # Created by the installer based on user directory location
 marytreat.bat
+Scripts/
 # Looks confidential
 /marytreat/scripts/step1.py
+/marytreat/scripts/build_version.py
 /marytreat/secret.py
 scitex*
 _scitex*
-Scripts/

@@ -32,7 +32,7 @@ class MaryLogger(logging.Logger):
         fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
         self.addHandler(fh)
         ch = logging.StreamHandler()
-        ch.setLevel(logging.WARNING)
+        ch.setLevel(logging.DEBUG)
         ch.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
         self.addHandler(ch)
 

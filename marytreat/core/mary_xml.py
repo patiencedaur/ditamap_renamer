@@ -113,7 +113,9 @@ class XMLContent:
         """
         if len(self.local_links) == 0:
             return
-        print(self.title_tag.text, self.local_links, old_name, new_name)
+        logger.debug('Title: ' + self.title_tag.text)
+        logger.debug('Links: ' + str([l.attrib.get('href') for l in self.local_links]))
+        logger.debug('Renaming links from ' + old_name + ' to ' + new_name)
         for link in self.local_links:
             link_href = link.attrib.get('href')
             if old_name in link_href:
@@ -123,7 +125,7 @@ class XMLContent:
                 logger.info('Updated link href: ' + new_name + '\n')
                 link.set('href', new_name)
 
-    def fattribute(self, attr_name, mode, new_value=None) -> str | None:  # for ishfiles only
+    def fattribute(self, attr_name, mode, new_value=None):  # for ishfiles only
         ishfields = self.root.find('ishfields')
         if ishfields is None:
             logger.error(self, 'is not an ISH file. Unable to get attribute', attr_name)

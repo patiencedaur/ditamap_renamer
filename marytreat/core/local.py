@@ -175,10 +175,21 @@ class LocalMap(LocalProjectFile):
         """
         content_types = {}
         for fl in os.listdir(self.folder):
+
+            # Filter out folders
             if '.' not in fl:
                 continue
-            print(fl)
-            basename, ext = fl.split('.')
+
+            # Handle unusual file names
+            logger.debug(fl)
+            fl_parts = fl.split('.')
+            try:
+                assert len(fl.split('.')) == 2
+                basename, ext = fl_parts
+            except AssertionError:
+                basename = '.'.join(fl_parts[:-1])
+                ext = fl_parts[-1]
+
             if ext not in content_types.keys():
                 content_types[ext] = [basename]
             else:
@@ -215,8 +226,8 @@ class LocalMap(LocalProjectFile):
         return set(image_list)
 
     def get_topic_from_topicref(self, topicref: etree.Element):
+        topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
         try:
-            topic_path: str = os.path.join(self.folder, topicref.attrib.get('href'))
             topic_content = XMLContent(etree.parse(topic_path).getroot())
         except Exception as e:
             logger.error(e)

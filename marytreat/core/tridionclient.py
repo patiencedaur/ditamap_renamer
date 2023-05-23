@@ -956,13 +956,16 @@ class Project:
 
     def check_for_titles_and_shortdescs(self):
         warnings = []
-        topic_folder = self.subfolders.get('topics')
+        topic_folder = self.subfolders.get('topics') or self.subfolders.get('Topics')
         if not topic_folder:
-            warnings.append('topics folder does not exist in project ' + self.name + '- skipping')
+            not_exist = 'topics folder does not exist in project ' + self.name + '- skipping'
+            warnings.append(not_exist)
+            logger.warning(not_exist)
             return
         topic_guids: list[str] = topic_folder.get_contents('ishobjects')
         logger.debug(topic_guids)
         for topic_guid in topic_guids:
+            logger.info('Checking ' + topic_guid + ' for titles and descriptions...')
             topic = Topic(id=topic_guid)
             topic_contents = XMLContent(root=topic.get_decoded_content_as_tree())
             if (topic_contents.title_missing() or topic_contents.shortdesc_missing()) \
@@ -977,8 +980,7 @@ class Project:
         if len(warnings) > 0:
             status_file = Path.joinpath(Path.home(), self.name + '_titles_shortdescs.txt')
             msg = 'Project ' + self.name + ' not ready for Dynamic Delivery.' + \
-                  '\n------------------------------------\n' + \
-                  'Status written to file ' + str(status_file) + \
+                  '\n\n' + 'Status written to file ' + str(status_file) + \
                   '\nProblematic topics:\n\n'
             for warning in warnings:
                 msg = msg + warning + '\n'

@@ -1,12 +1,12 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 name = 'MaryTreat'
-version = '1.0.1'
+version = '1.0.2'
 
 setup(
     name=name,
     version=version,
-    packages=[''],
+    packages=find_packages(),
     url='',
     license='',
     author='Dia Daur',

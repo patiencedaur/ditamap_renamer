@@ -135,11 +135,16 @@ class LocalMapProcessing(ttk.LabelFrame):
     def check_queue_for_renamed_topics(self):
         try:
             number_renamed_topics = self.q.get_nowait()
-            self.pb.stopandhide()
-            rename_msg = 'Processed %s topics in map folder.' % str(number_renamed_topics)
-            messagebox.showinfo(title='Renamed files', message=rename_msg)
+            if number_renamed_topics and number_renamed_topics != -1:
+                self.pb.stopandhide()
+                rename_msg = 'Processed %s topics in map folder.' % str(number_renamed_topics)
+                messagebox.showinfo(title='Renamed files', message=rename_msg)
         except Empty:
             self.after(100, self.check_queue_for_renamed_topics)
+        except Exception as e:
+            self.pb.stopandhide()
+            self.q.put(-1)
+            logger.error(e)
 
     def call_mass_edit(self, *args):
         if self.ditamap:
