@@ -173,8 +173,27 @@ class LocalMap(LocalProjectFile):
 
         :return: project type - 'cheetah' or 'word'
         """
+        content_types = LocalMap.scan_folder(self.folder)
+        i_am_from_cheetah = '3sish' in content_types.keys()
+        if i_am_from_cheetah:
+            if len(content_types['dita']) != len(content_types['3sish']):
+                # list of ditas XOR list of 3sish
+                problematic_files = set(content_types['dita']) ^ set(content_types['3sish'])
+                logger.critical('Some DITA topics are missing their ISH files, or vice versa. ' +
+                                'The following files have no pair:\n' +
+                                str(problematic_files))
+                raise FileNotFoundError
+            else:
+                logger.info('This project is derived from a Cheetah file')
+                return 'cheetah'
+        else:
+            logger.info('This project is derived from a Word file')
+            return 'word'
+
+    @staticmethod
+    def scan_folder(fldr):
         content_types = {}
-        for fl in os.listdir(self.folder):
+        for fl in os.listdir(fldr):
 
             # Filter out folders
             if '.' not in fl:
@@ -194,21 +213,7 @@ class LocalMap(LocalProjectFile):
                 content_types[ext] = [basename]
             else:
                 content_types[ext].append(basename)
-        i_am_from_cheetah = '3sish' in content_types.keys()
-        if i_am_from_cheetah:
-            if len(content_types['dita']) != len(content_types['3sish']):
-                # list of ditas XOR list of 3sish
-                problematic_files = set(content_types['dita']) ^ set(content_types['3sish'])
-                logger.critical('Some DITA topics are missing their ISH files, or vice versa. ' +
-                                'The following files have no pair:\n' +
-                                str(*problematic_files))
-                raise FileNotFoundError
-            else:
-                logger.info('This project is derived from a Cheetah file')
-                return 'cheetah'
-        else:
-            logger.info('This project is derived from a Word file')
-            return 'word'
+        return content_types
 
     def get_images(self) -> set['Image']:
         """

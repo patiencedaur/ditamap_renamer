@@ -210,6 +210,8 @@ class XMLContent:
                 # remove the numbers at the start
                 numeration = search('^\d+\. ', p.text).group(0)
                 p.text.replace(numeration, '')
+                checkboxes = search('^\u2751 ', p.text).group(0)
+                p.text.replace(checkboxes, '')
                 self.convert_tag_to_step(p)
             self.wrap_steps()
 
@@ -220,7 +222,9 @@ class XMLContent:
         tag.insert(0, cmd)
 
     def is_list_item(self, p):
-        if search('^\d+\. ', p.text):
+        if not p.text:
+            return False
+        if search('^\d+\. ', p.text) or search('^\u2751', p.text):
             return True
         return False
 

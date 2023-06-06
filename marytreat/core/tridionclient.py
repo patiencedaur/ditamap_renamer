@@ -249,20 +249,17 @@ class BaseTridionDocsObject:
 @debugmethods
 class DocumentObject(BaseTridionDocsObject):
 
-    def __init__(self, name: str | None = None,
-                 folder_id: int | str | None = None,
-                 id: str | None = None) -> None:
+    def __init__(self, name=None, folder_id=None, id=None) -> None:
         if name and folder_id and not id:
             self.name = name
             self.folder_id = folder_id
         elif id and not name and not folder_id:
             self.id = id  # use get_name() in this case
-            self.name = None
         self.hostname = Constants.HOSTNAME + 'DocumentObj25.asmx?wsdl'
         self.service = Client(self.hostname, service_name='DocumentObj25', port_name='DocumentObj25Soap').service
 
     def get_name(self):
-        if getattr(self, 'name') is None:
+        if not hasattr(self, 'name'):
             name_request_metadata = Metadata(('ftitle', ''))
             name_response = self.get_metadata(name_request_metadata)
             self.name = name_response.dict_form.get('FTITLE').get('text')
@@ -914,8 +911,8 @@ class Project:
             source_name, source_guid = libvar_sources
             assert len(var_guids) == 0
         except TypeError:
-            logger.error('Either library variable already exists or source topic was not found. ' +
-                         'Check the Content Manager')
+            logger.warning('Either library variable already exists or source topic was not found. ' +
+                           'Check the Content Manager')
             source_name, source_guid = None, None
         except AssertionError:
             logger.warning("The libvar {} was already migrated".format(var_guids[0]))
