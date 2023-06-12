@@ -19,6 +19,6 @@ echo python -m marytreat >> marytreat.bat
 
 echo Creating desktop shortcut...
 
-powershell "$pathToTarget=(Join-Path $pwd 'marytreat.bat');$pathToDesktop=[Environment]::GetFolderPath('Desktop');$pathToShortcut=(Join-Path $pathToDesktop 'MaryTreat.lnk');$pathToIcon=(Join-Path $pwd 'marytreat.ico');$s=(New-Object -COM WScript.Shell).CreateShortcut($pathToShortcut);$s.TargetPath=$pathToTarget;$s.IconLocation=$pathToIcon;$s.Save()"
+powershell "$pathToTarget=(Join-Path $pwd 'marytreat.bat');$pathToDesktop=[Environment]::GetFolderPath('Desktop');$pathToShortcut=(Join-Path $pathToDesktop 'MaryTreat-Indigo.lnk');$pathToIcon=(Join-Path $pwd 'marytreat.ico');$s=(New-Object -COM WScript.Shell).CreateShortcut($pathToShortcut);$s.TargetPath=$pathToTarget;$s.IconLocation=$pathToIcon;$s.Save()"
 
 pause

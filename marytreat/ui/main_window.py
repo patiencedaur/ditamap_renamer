@@ -25,7 +25,7 @@ class App(Tk):
 
     def __init__(self):
         super().__init__()
-        self.title('MaryTreat - HP Indigo Smart Content DITA Manager')
+        self.title('MaryTreat Indigo - Smart Content DITA Manager')
         self.iconbitmap(get_icon())
 
         tab_control = TabControl(self)

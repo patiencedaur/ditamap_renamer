@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-name = 'MaryTreat'
+name = 'MaryTreat Indigo'
 version = '1.1.0'
 
 setup(
