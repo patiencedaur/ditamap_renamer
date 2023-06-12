@@ -24,9 +24,6 @@ class LocalTab(PanedWindow):
         step_one_and_a_half = LocalMapProcessing(self)
         self.add(step_one_and_a_half, **padding)
 
-        flare_image_renamer = RenameImageFile(self)
-        self.add(flare_image_renamer, **padding)
-
 
 class LocalMapProcessing(ttk.LabelFrame):
 

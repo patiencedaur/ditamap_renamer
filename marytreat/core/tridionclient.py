@@ -821,6 +821,11 @@ class Project:
     }
 
     def __init__(self, name: str = None, id: str | int = None):
+        """
+        Project is basically a folder with bells and whistles.
+        :param name: project folder name (FNAME value in metadata)
+        :param id: project folder id
+        """
         logger.debug('Creating project:', locals())
         if not id:
             logger.critical('Please provide the project\'s ID.')
@@ -1039,6 +1044,9 @@ class SearchRepository:
                     start_depth: int,
                     max_depth: int = 2) -> \
             tuple[str | None, str | int | None]:
+        """
+        Returns name and GUID of the project folder (folder type = folder with folders).
+        """
         logger.info('Searching...')
         result = SearchRepository.scan_helper(part_number, folder, start_depth, max_depth)
         if result:

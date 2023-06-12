@@ -25,12 +25,12 @@ class App(Tk):
 
     def __init__(self):
         super().__init__()
-        self.title('MaryTreat - HP Indigo Smart Content DITA Manager')
+        self.title('MaryTreat - HP Smart Content DITA Manager')
         self.iconbitmap(get_icon())
 
         tab_control = TabControl(self)
         tab_control.grid(row=0, column=0, sticky='nsew')
 
-        position_window(self, 515, 290)
+        position_window(self, 515, 200)
         self.resizable = False
         self.lift()

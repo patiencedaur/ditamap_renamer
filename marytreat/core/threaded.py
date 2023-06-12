@@ -48,13 +48,16 @@ class ThreadedRepositorySearch(Thread):
 
 class ThreadedTitleAndDescriptionChecker(Thread):
 
-    def __init__(self, proj, q):
+    def __init__(self, mp, q):
         super().__init__(daemon=True)
-        self.project = proj
+        self.mp = mp
         self.q = q
 
     def run(self):
-        message = self.project.check_for_titles_and_shortdescs()
+        from marytreat.core.tridionclient import Folder, Project
+        map_fldr_id = self.mp.get_parent_folder_id()
+        proj_id = Folder(id=map_fldr_id).get_location()[-2]  # parent folder of the map folder
+        message = Project(id=proj_id).check_for_titles_and_shortdescs()
         self.q.put(message)
 
 
