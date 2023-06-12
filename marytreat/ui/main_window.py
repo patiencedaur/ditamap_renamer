@@ -1,9 +1,10 @@
+import tkinter
 from tkinter import ttk, Tk
 import os
 from marytreat.core.constants import Constants
 from marytreat.ui.local_ui import LocalTab
 from marytreat.ui.tridionclient_ui import ServerActionsTab
-from marytreat.ui.utils import get_icon
+from marytreat.ui.utils import get_icon, position_window
 
 padding = Constants.PADDING.value
 
@@ -29,3 +30,7 @@ class App(Tk):
 
         tab_control = TabControl(self)
         tab_control.grid(row=0, column=0, sticky='nsew')
+
+        position_window(self, 515, 290)
+        self.resizable = False
+        self.lift()

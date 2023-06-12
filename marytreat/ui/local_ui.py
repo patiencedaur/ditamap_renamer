@@ -10,7 +10,7 @@ from marytreat.core import process_word
 import marytreat.core.local as l
 from marytreat.core.rename_flare_images import RenameImageFile
 from marytreat.core.threaded import ThreadedLocalMapFactory, ThreadedLocalTopicRenamer
-from marytreat.ui.utils import MaryProgressBar, get_icon
+from marytreat.ui.utils import MaryProgressBar, get_icon, position_window
 from marytreat.core.mary_debug import logger
 
 padding = Constants.PADDING.value
@@ -168,6 +168,7 @@ class ImageNamesWindow:
         self.padding = {'padx': 5, 'pady': 5}
 
         self.top = Toplevel()
+        position_window(self.top, 440, 120)
         self.top.iconbitmap(get_icon())
         self.top.title = 'Mass edit image names'
 
@@ -208,15 +209,12 @@ class MissingItemsWindow(Tk):
 
         super().__init__()
         self.iconbitmap(get_icon())
+        self.state('zoomed')  # maximize window
 
         self.ditamap = ditamap
         self.padding = {'padx': 7, 'pady': 7}
 
         self.title('Edit titles and shortdescs')
-        self.resizable(True, True)
-        self.width = self.winfo_screenwidth()
-        self.height = self.winfo_screenheight()
-        # self.geometry('%dx%d' % (self.width/2, self.height/2))
 
         self.table_frame = None
         self.table = None

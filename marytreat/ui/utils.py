@@ -3,10 +3,28 @@ import uuid
 from os import path
 from subprocess import Popen, PIPE
 from sys import exit
-from tkinter import Toplevel, Label, Text, Button
+from tkinter import Tk, Toplevel, Label, Text, Button
 from tkinter.ttk import Progressbar
 
 from marytreat.core.constants import Constants
+
+
+def position_window(window: Tk | Toplevel, width=None, height=None, offset_x=0, offset_y=0):
+    window.wm_attributes('-alpha', 0)  # hide window
+
+    if not width and not height:
+        width = window.winfo_width()
+        height = window.winfo_height()
+
+    sc_width = window.winfo_screenwidth()
+    sc_height = window.winfo_screenheight()
+    x_pos = int(sc_width/2 - width/2)
+    y_pos = int(sc_height/2 - height/2)
+
+    window.update_idletasks()
+
+    window.geometry("{}x{}+{}+{}".format(width, height, x_pos + offset_x, y_pos + offset_y))
+    window.wm_attributes('-alpha', 1)  # show window
 
 
 def get_icon():

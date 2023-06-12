@@ -10,7 +10,7 @@ from marytreat.core.mary_xml import XMLContent
 from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedMetadataDuplicator
 from marytreat.core.threaded import ThreadedTitleAndDescriptionChecker, ThreadedTagDownload, ThreadedSubmapGenerator
 from marytreat.core.tridionclient import SearchRepository, Project, Tag, Topic, Map
-from marytreat.ui.utils import MaryProgressBar, get_icon, validate
+from marytreat.ui.utils import MaryProgressBar, get_icon, validate, position_window
 
 padding = Constants.PADDING.value
 
@@ -240,6 +240,7 @@ class ManagePublication(Toplevel):
                                    'Please complete project migration.')
             self.destroy()
         self.fill_tree(map_tree)
+        self.lift()
 
     def fill_tree(self, map_tree):
         top_context = map_tree.root.findall('topicref')
@@ -271,6 +272,7 @@ class DownloadTagValueWindow(Toplevel):
         super().__init__()
         self.title('Download TMS values')
         self.iconbitmap(get_icon())
+        position_window(self, 200, 130)
 
         self.get_css, self.get_product, self.get_hardware = IntVar(), IntVar(), IntVar()
 
@@ -417,6 +419,7 @@ class WrapInMapWindow(Toplevel):
         super().__init__()
         self.title('Wrap topic in map')
         self.iconbitmap(get_icon())
+        position_window(self, 450, 210)
 
         self.q = Queue()
         self.pb = MaryProgressBar()
