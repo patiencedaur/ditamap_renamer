@@ -965,8 +965,9 @@ class Project:
             logger.info('Checking ' + topic_guid + ' for titles and descriptions...')
             topic = Topic(id=topic_guid)
             topic_contents = XMLContent(root=topic.get_decoded_content_as_tree())
-            if (topic_contents.title_missing() or topic_contents.shortdesc_missing()) \
-                    and topic_contents.outputclass != 'frontcover' and topic_contents.outputclass != 'backcover':
+            apply_filter = (topic_contents.outputclass is not None and topic_contents.outputclass not in (
+                                        'frontcover', 'backcover', 'legalinformation', 'lpcontext'))
+            if apply_filter and (topic_contents.title_missing() or topic_contents.shortdesc_missing()):
                 topic_name = topic.get_metadata(Metadata(('ftitle', ''))).dict_form.get('FTITLE').get('text')
                 if topic_contents.title_missing():
                     report = 'Title missing:\n' + topic_name + '\n'

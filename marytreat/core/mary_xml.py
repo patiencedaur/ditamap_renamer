@@ -60,16 +60,23 @@ class XMLContent:
         section.append(p)
 
     def title_missing(self):
-        if self.title_tag is None or \
-                (self.title_tag is not None and self.title_tag.text is None) or \
-                (self.title_tag.text is not None and 'MISSING TITLE' in self.title_tag.text):
+        if self.title_tag is None:
+            return True
+        if len(self.title_tag) > 0:  # contains another tag
+            actual_title_text = ' '.join(list(self.title_tag.itertext()))
+        else:
+            actual_title_text = self.title_tag.text
+        if actual_title_text is None or 'MISSING TITLE' in actual_title_text:
             return True
         return False
 
     def shortdesc_missing(self):
-        if self.shortdesc_tag is None or \
-                (self.shortdesc_tag is not None and
-                 self.shortdesc_tag.text is not None and 'SHORT DESCRIPTION' in self.shortdesc_tag.text):
+        if self.shortdesc_tag is None:
+            return True
+        if len(self.shortdesc_tag) > 0:  # contains another tag
+            return False
+        actual_shortdesc = self.shortdesc_tag.text or ' '.join(list(self.shortdesc_tag.itertext()))
+        if actual_shortdesc is None or 'SHORT DESCRIPTION' in actual_shortdesc:
             return True
         return False
 

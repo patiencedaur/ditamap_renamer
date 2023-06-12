@@ -492,11 +492,14 @@ class LocalTopic(LocalProjectFile):
         Creates a filename that complies with the style guide, based on the document title.
         Takes into account repeating titles of different topics.
         """
+        actual_title_text = self.content.title_tag.text or ' '.join(list(self.content.title_tag.itertext()))
         new_name = re.sub(r'[\s\W]', '_',
-                          self.content.title_tag.text).replace('___',
+                          actual_title_text).replace('___',
                                                                '_').replace('__',
                                                                             '_').replace('_the_', '_')
         new_name = re.sub(r'\W+', '', new_name, flags=re.ASCII)
+        if new_name == 'Rev' or len(new_name) < 2:
+            return self.name
         if new_name.endswith('_'):
             new_name = new_name[:-1]
         if new_name[1] == '_':
@@ -538,7 +541,7 @@ class LocalTopic(LocalProjectFile):
         logger.info('Updating name: ' + str(old_topic))
         new_name = self.create_new_name(num_rep)
         if old_topic.name == new_name:
-            logger.info('Skipped: %s, already renamed' % old_topic.name)
+            logger.info('Skipped: %s' % old_topic.name)
             return
 
         self.name = new_name

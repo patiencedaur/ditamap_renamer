@@ -2,6 +2,9 @@ import _initialize
 from marytreat.core.tridionclient import DocumentObject
 from _validator import get_guid_from_cli
 
+"""
+Copies metadata from object to object.
+"""
 
 guid = get_guid_from_cli('Enter object to copy metadata from: ')
 

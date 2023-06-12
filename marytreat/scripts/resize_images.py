@@ -7,7 +7,7 @@ Requires ImageMagick installed.
 print("""
 This script requires ImageMagick installed on your computer.
 * Convert local pngs with too large resolutions into 150 ppi.
-* Convert too wide local 150 ppi images to 4 inches wide (600 px).
+* Convert too wide local 150 ppi images to 4.5 inches wide (675 px).
   
 It is recommended to backup the images folder before you run this script.
 

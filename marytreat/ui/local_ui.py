@@ -314,8 +314,14 @@ class MissingItemsWindow(Tk):
             if topic in pfiles:
                 pfiles.remove(topic)
             content: l.XMLContent = topic.content
-            has_title = '-' if content.title_missing() else content.title_tag.text
-            has_shortdesc = '-' if content.shortdesc_missing() else content.shortdesc_tag.text
+            if content.title_missing():
+                has_title = '-'
+            else:
+                has_title = content.title_tag.text or ' '.join(list(content.title_tag.itertext()))
+            if content.shortdesc_missing():
+                has_shortdesc = '-'
+            else:
+                has_shortdesc = content.shortdesc_tag.text or ' '.join(list(content.shortdesc_tag.itertext()))
             has_draft_comments = 'Yes' if len(content.draft_comments) > 0 else ''
             topic_id_in_table = self.table.insert(parent_id, END, text=topic.name, open=False, tags=tags,
                                                   values=(has_title, has_shortdesc, has_draft_comments))

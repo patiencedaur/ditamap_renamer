@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 name = 'MaryTreat'
-version = '1.0.3'
+version = '1.1.0'
 
 setup(
     name=name,
