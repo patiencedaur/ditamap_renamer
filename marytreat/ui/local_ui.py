@@ -217,9 +217,12 @@ class MissingItemsWindow(Tk):
         self.title('Edit titles and shortdescs')
 
         self.table_frame = None
+        self.file_frame = None
         self.table = None
         self.open_topic = None
         self.topic_text = None
+        self.title_label = None
+        self.shortdesc_label = None
         self.title_button = None
         self.shortdesc_button = None
         self.open_button = None
@@ -227,6 +230,8 @@ class MissingItemsWindow(Tk):
         self.shortdesc_field = None
         self.save_title_btn = None
         self.save_shortdesc_btn = None
+        self.gen_shortdesc_btn = None
+        self.remove_context_btn = None
         self.title_var = None
         self.shortdesc_var = None
 
@@ -367,13 +372,21 @@ class MissingItemsWindow(Tk):
         self.open_button = Button(self.file_frame, text='Open in Notepad', command=self.open_simple, state='disabled')
         self.open_button.grid(row=0, column=2, sticky='ew')
 
+        self.gen_shortdesc_btn = Button(self.file_frame, text='Generate shortdesc (task)',
+                                        command=self.gen_shortdesc, state='disabled')
+        self.gen_shortdesc_btn.grid(row=1, column=0, columnspan=2, sticky='ew')
+
+        self.remove_context_btn = Button(self.file_frame, text='Remove context (task)',
+                                         command=self.remove_context, state='disabled')
+        self.remove_context_btn.grid(row=1, column=2, sticky='ew')
+
         self.topic_text = Text(self.file_frame, width=50, height=25, wrap='word')
-        self.topic_text.grid(row=2, column=0, columnspan=3, sticky='nsew', **self.padding)
+        self.topic_text.grid(row=3, column=0, columnspan=3, sticky='nsew', **self.padding)
         self.topic_text.insert(END, 'Click a file to preview.')
         self.topic_text.config(state='disabled')
 
         scrollbar = Scrollbar(self.file_frame)
-        scrollbar.grid(row=1, column=3, sticky='ns')
+        scrollbar.grid(row=3, column=3, columnspan=3, sticky='nse')
         self.topic_text.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.topic_text.yview)
 
@@ -396,31 +409,34 @@ class MissingItemsWindow(Tk):
         self.title_button.config(state='normal')
         self.shortdesc_button.config(state='normal')
         self.open_button.config(state='normal')
+        if content.outputclass == 'procedure':
+            self.gen_shortdesc_btn.config(state='normal')
+            self.remove_context_btn.config(state='normal')
 
         self.title_var = StringVar(self, topic.content.title_tag.text)
         self.shortdesc_var = StringVar(self, topic.content.shortdesc_tag.text)
 
     def show_edit_title(self):
         self.title_field = Entry(self.file_frame, textvariable=self.title_var)
-        self.title_field.grid(row=1, column=1, sticky='ew', **self.padding)
+        self.title_field.grid(row=2, column=1, sticky='ew', **self.padding)
 
         self.title_label = Label(self.file_frame, text='Title:')
-        self.title_label.grid(row=1, column=0, sticky='ew')
+        self.title_label.grid(row=2, column=0, sticky='ew')
 
         self.save_title_btn = Button(self.file_frame, text='OK', command=self.save_title)
-        self.save_title_btn.grid(row=1, column=2, sticky='ew')
+        self.save_title_btn.grid(row=2, column=2, sticky='ew')
 
     def show_edit_shortdesc(self):
         self.shortdesc_var.set(self.open_topic.content.shortdesc_tag.text)
 
         self.shortdesc_label = Label(self.file_frame, text='Shortdesc:')
-        self.shortdesc_label.grid(row=1, column=0, sticky='ew')
+        self.shortdesc_label.grid(row=2, column=0, sticky='ew')
 
         self.shortdesc_field = Entry(self.file_frame, textvariable=self.shortdesc_var)
-        self.shortdesc_field.grid(row=1, column=1, sticky='ew', **self.padding)
+        self.shortdesc_field.grid(row=2, column=1, sticky='ew', **self.padding)
 
         self.save_shortdesc_btn = Button(self.file_frame, text='OK', command=self.save_shortdesc)
-        self.save_shortdesc_btn.grid(row=1, column=2, sticky='ew')
+        self.save_shortdesc_btn.grid(row=2, column=2, sticky='ew')
 
     def save_title(self):
         new_title = self.title_var.get()
@@ -441,3 +457,12 @@ class MissingItemsWindow(Tk):
     def open_simple(self):
         self.attributes('-topmost', False)
         Popen(['notepad.exe', self.open_topic.path])
+
+    def gen_shortdesc(self):
+        new_shortdesc = self.open_topic.content.gen_shortdesc()
+        self.open_topic.set_shortdesc(new_shortdesc)
+        self.fill_text_frame(self.open_topic)
+
+    def remove_context(self):
+        self.open_topic.remove_context()
+        self.fill_text_frame(self.open_topic)
