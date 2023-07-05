@@ -199,15 +199,16 @@ class Tag:
 
 @requires_token
 class LOV:
-    hostname = Constants.HOSTNAME + 'ListOfValues25.asmx?wsdl'
-    service = Client(hostname, service_name='ListOfValues25', port_name='ListOfValues25Soap').service
 
-    @staticmethod
-    def get_value_tree(dname):
-        xml = LOV.service.RetrieveValues(psAuthContext=token,
-                                         pasFilterLovIds=dname.upper(),
-                                         peActivityFilter='None',
-                                         )['psOutXMLLovValueList']
+    def __init__(self):
+        self.hostname = Constants.HOSTNAME + 'ListOfValues25.asmx?wsdl'
+        self.service = Client(self.hostname, service_name='ListOfValues25', port_name='ListOfValues25Soap').service
+
+    def get_value_tree(self, dname: str):
+        xml = self.service.RetrieveValues(psAuthContext=token,
+                                          pasFilterLovIds=dname.upper(),
+                                          peActivityFilter='None',
+                                          )['psOutXMLLovValueList']
         return Unpack.to_tree(xml)
 
 
@@ -216,20 +217,23 @@ class Auth:
 
     @staticmethod
     def get_token():
-        service = Client(Constants.HOSTNAME + 'Application25.asmx?wsdl',
-                         service_name='Application25',
-                         port_name='Application25Soap',
-                         transport=Transport(session=Session())).service
+        try:
+            service = Client(Constants.HOSTNAME + 'Application25.asmx?wsdl',
+                             service_name='Application25',
+                             port_name='Application25Soap',
+                             transport=Transport(session=Session())).service
 
-        # client = Client(hostname + 'Application25.asmx?wsdl', wsse=UsernameToken(username, password))
-        response = service.Login('InfoShareAuthor', Constants.USERNAME, Constants.PASSWORD)
-        tkn = response['psOutAuthContext']
-        logger.info('Login token: ' + tkn)
-        return tkn
+            # client = Client(hostname + 'Application25.asmx?wsdl', wsse=UsernameToken(username, password))
+            response = service.Login('InfoShareAuthor', Constants.USERNAME, Constants.PASSWORD)
+            tkn = response['psOutAuthContext']
+            logger.info('Login token: ' + tkn)
+            return tkn
+        except Exception as e:
+            logger.warning('Working offline. Server functions are disabled\n' + str(e))
 
     @staticmethod
     def get_dusername():
-        tree = LOV.get_value_tree('username')
+        tree = LOV().get_value_tree('username')
         for ishlovvalue in tree.iter('ishlovvalue'):
             label = ishlovvalue.find('label')
             if label.text == Constants.USERNAME.value:
@@ -795,12 +799,24 @@ class Folder(BaseTridionDocsObject):
         except exceptions.Fault as e:
             logger.critical('Problem with the publication. Reason: ' + str(e))
 
-    def mass_create_subfolders(self, subfolder_name_list: list[str], subfolder_type) -> None:
-        for subfolder_name in subfolder_name_list:
+    def create_subfolder_structure(self) -> None:
+        """
+        Creates folder structure for a new project.
+        :param subfolder_names_types:
+        :return:
+        """
+        subfolders = {
+            'images': 'ISHIllustration',
+            'maps': 'ISHMasterDoc',
+            'publications': 'ISHPublication',
+            'topics': 'ISHModule',
+            'variables': 'ISHLibrary'
+        }
+        for f_name, f_type in subfolders.items():
             try:
-                Folder(name=subfolder_name, parent_id=self.id, type=subfolder_type)
+                Folder(name=f_name, parent_id=self.id, type=f_type)
             except exceptions.Fault as e:
-                logger.error('Subfolder ' + subfolder_name + ' not created. Reason: ' + str(e))
+                logger.error('Failed to create subfolder ' + f_name + '. Reason: ' + str(e))
 
     def tag_all(self, **kwargs):
         guids: list[str] = self.get_contents('ishobjects')
@@ -812,7 +828,7 @@ class Folder(BaseTridionDocsObject):
 @debugmethods
 @requires_token
 class Project:
-    folder_names = {
+    inner_folders = {
         ('images', 'media', 'Images'): ('ISHIllustration', 'Image'),
         ('maps', 'Maps', 'b_root_map'): ('ISHMasterDoc', 'Map'),
         ('publications', 'Publications', 'publication', 'a_publication'): ('ISHPublication', 'Publications'),
@@ -844,7 +860,7 @@ class Project:
         for metadata, folder_id in subfolder_data:
             name: str = metadata.dict_form.get('FNAME').get('text')
             # if in any key there is an item that looks like folder name
-            for variants_list in Project.folder_names.keys():
+            for variants_list in Project.inner_folders.keys():
                 if any(name == name_variant for name_variant in variants_list):  # if folder with this name exists
                     folder_obj: Folder = Folder(id=folder_id, metadata=metadata)
                     subfolders[name] = folder_obj
@@ -854,7 +870,7 @@ class Project:
         if folder_name not in self.subfolders.keys():
             # if folder does not exist
             try:
-                for variants, params in Project.folder_names.items():
+                for variants, params in Project.inner_folders.items():
                     if folder_name in variants:
                         folder_type = params[0]
                         new_folder = Folder(name=folder_name, type=folder_type, parent_id=self.folder.id)
@@ -933,7 +949,7 @@ class Project:
         logger.info("Starting migration...")
         # check what folders exist already
         # get root folder content and check it against name variants
-        for variants in Project.folder_names.keys():
+        for variants in Project.inner_folders.keys():
             # if folder with any of the name variants does not exist
             if all(variant not in self.subfolders.keys() for variant in variants):
                 self.create_subfolder(variants[0])
@@ -952,7 +968,7 @@ class Project:
         logger.info('Migration completed.')
 
     def create_folder_structure(self) -> dict[str, Folder]:
-        for folder_name in Project.folder_names.keys():
+        for folder_name in Project.inner_folders.keys():
             self.create_subfolder(folder_name[0])
         return self.subfolders
 
@@ -971,7 +987,7 @@ class Project:
             topic = Topic(id=topic_guid)
             topic_contents = XMLContent(root=topic.get_decoded_content_as_tree())
             apply_filter = (topic_contents.outputclass is not None and topic_contents.outputclass not in (
-                                        'frontcover', 'backcover', 'legalinformation', 'lpcontext'))
+                'frontcover', 'backcover', 'legalinformation', 'lpcontext'))
             if apply_filter and (topic_contents.title_missing() or topic_contents.shortdesc_missing()):
                 topic_name = topic.get_metadata(Metadata(('ftitle', ''))).dict_form.get('FTITLE').get('text')
                 if topic_contents.title_missing():

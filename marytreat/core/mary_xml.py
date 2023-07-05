@@ -120,13 +120,13 @@ class XMLContent:
         """
         if len(self.local_links) == 0:
             return
-        logger.debug('Title: ' + self.title_tag.text)
+        logger.debug('Title: ' + str(self.title_tag.text))
         logger.debug('Links: ' + str([l.attrib.get('href') for l in self.local_links]))
         logger.debug('Renaming links from ' + old_name + ' to ' + new_name)
         for link in self.local_links:
             link_href = link.attrib.get('href')
             if old_name in link_href:
-                logger.info("'" + self.title_tag.text + "'" +
+                logger.info("'" + str(self.title_tag.text) + "'" +
                             ' has old link to ' + new_name + ' (%s)' % link_href)
                 new_name = link_href.replace(old_name, new_name)
                 logger.info('Updated link href: ' + new_name + '\n')
@@ -357,3 +357,38 @@ class XMLContent:
                     body[0].remove(first_el)
             except IndexError:
                 return
+
+    def gen_shortdesc(self):
+        """
+        Generates a short description: takes the title, changes the gerund to an infinitive,
+        and puts it in a general phrase.
+        Procedure outputclass only.
+        :return: new short description
+        """
+        from lemminflect import getLemma
+        if self.outputclass != 'procedure':
+            return
+        if not self.title_tag.text:
+            return
+        title_words = self.title_tag.text.split(' ')
+        logger.debug(title_words)
+        if title_words[0].endswith('ing'):
+            infinitive = getLemma(title_words[0], upos='VERB')[0]
+            logger.debug(infinitive)
+            title_words[0] = 'To ' + infinitive.lower()
+            new_shortdesc = ' '.join(title_words) + ', follow the steps in this section.'
+        else:
+            new_shortdesc = "Follow the instructions in this section."
+        logger.debug(str(self) + ': ' + new_shortdesc)
+        return new_shortdesc
+
+    def remove_context(self):
+        if self.outputclass != 'procedure':
+            return
+        taskbody = self.tree.xpath('taskbody')
+        try:
+            cntxt = taskbody[0].find('context')
+            taskbody[0].remove(cntxt)
+        except IndexError as e:
+            logger.info(e)
+            return
