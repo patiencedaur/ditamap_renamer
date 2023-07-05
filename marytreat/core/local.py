@@ -2,6 +2,7 @@ import os
 import re
 from copy import deepcopy
 from shutil import copy2
+from typing import List, Any
 
 from lxml import etree
 
@@ -143,6 +144,10 @@ class LocalMap(LocalProjectFile):
         self.ditamap = self
         self.topics = self.get_topics()
 
+        images_used = set([i for t in self.topics for i in t.images])
+        images_not_used = self.images - images_used
+        logger.info('Images not used:\n' + '\n'.join(sorted([i.href for i in images_not_used])))
+
     def __str__(self) -> str:
         return '<LocalMap: ' + self.name + '>'
 
@@ -222,7 +227,7 @@ class LocalMap(LocalProjectFile):
         """
         image_list = []
         for file in os.listdir(self.image_folder):
-            if file.endswith(('png', 'jpg', 'gif')):
+            if file.endswith(('png', 'PNG', 'jpg', 'JPG', 'gif', 'GIF')):
                 if self.folder != self.image_folder:
                     href = os.path.basename(self.image_folder) + '/' + file
                 else:
@@ -339,6 +344,7 @@ class LocalMap(LocalProjectFile):
         # there can be two images with different paths but identical titles
         # one image can be reference in multiple topics
         # count repeating titles and get image to topic map for purposes of renaming
+        renamed = []
         titles: dict[str, int] = {}
         image_uses_in_topic: dict[Image, list[LocalTopic]] = {}
         for topic in self.topics:
@@ -355,6 +361,8 @@ class LocalMap(LocalProjectFile):
                 topics.append(topic)
         # give image files new names
         for img, topics in image_uses_in_topic.items():
+            if img in renamed:  # avoid the situation when one new image overwrites another image file
+                continue        # because of a name conflict
             new_name: str = img.generate_name(image_prefix)
             current_path: str = os.path.join(self.folder, img.href)
             new_path: str = os.path.join(self.image_folder, new_name)
@@ -369,6 +377,7 @@ class LocalMap(LocalProjectFile):
                 logger.warning('File with the new name "' + new_path + '" already exists, skipping')
                 continue
             file_rename(current_path, new_path)
+            renamed.append(img)
             # rename hrefs in topics
             if self.image_folder != self.folder:
                 new_name = os.path.basename(self.image_folder) + '/' + new_name
@@ -436,8 +445,8 @@ class LocalTopic(LocalProjectFile):
             contains = True
         return contains
 
-    def get_images(self):
-        topic_images = []
+    def get_images(self) -> set['Image']:
+        topic_images: list['Image'] = []
         for ditamap_image in self.ditamap.images:
             ditamap_href = ditamap_image.href
             for fig in self.content.root.iter('fig'):
@@ -560,23 +569,6 @@ class LocalTopic(LocalProjectFile):
         except Exception as e:
             logger.debug('Cannot cast ' + str(self) + ' to ' + str(self.__class__) + ':\n' + str(e))
 
-    # def assign_type_from_prefix(self):
-    #     prefix = self.name[0:2]
-    #     available_prefixes = {v[0]: k for k, v in Constants.outputclasses.value.items()
-    #                           if k != 'lpcontext'}
-    #     if prefix in available_prefixes.keys():
-    #         self.content.root.set('outputclass', available_prefixes[prefix])
-    #         self.content.outputclass = available_prefixes[prefix]
-    #         self.update_doctype_in_map()
-    #
-    #         if prefix == 'c_' or prefix == 'e_':
-    #             self.content.convert_to_concept()
-    #         elif prefix == 'r_':
-    #             self.content.convert_to_reference()
-    #         elif prefix == 't_':
-    #             self.content.convert_to_task()
-    #         self.write(doctype=Constants.outputclasses.value.get(self.content.outputclass)[2])
-
     def update_doctype_in_map(self):
         for topicref in self.ditamap.content.root.iter('topicref'):
             if topicref.attrib.get('href') == self.name:
@@ -649,6 +641,10 @@ class LocalTaskTopic(LocalTopic):
 
     def _cast(self):
         self.content.convert_to_task()
+        self.write()
+
+    def remove_context(self):
+        self.content.remove_context()
         self.write()
 
 
