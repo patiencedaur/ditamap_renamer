@@ -57,7 +57,7 @@ def after_conversion(project_folder):
     ditamap.create_root_concept()
 
     docdetails = ditamap.topics[0]  # assume it's the first topic in the map
-    docdetails.format_docdetails()
+    docdetails.format_docdetails_from_word()
 
     for t in ditamap.topics:
         t.content.wrap_images_in_fig()
