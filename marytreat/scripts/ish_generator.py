@@ -40,8 +40,9 @@ def guidize(path_obj):
     ditaroot = ditatree.getroot()
     guid = ditaroot.attrib.get('id')
     try:
+        assert guid.startswith('GUID-')
         uuid.UUID(guid[5:])
-    except ValueError:
+    except (AssertionError, ValueError):
         guid = gen_guid(path_obj)
         ditaroot.set('id', guid)
         ditatree.write(path_obj)
