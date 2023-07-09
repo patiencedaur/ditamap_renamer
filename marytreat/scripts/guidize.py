@@ -21,7 +21,7 @@ def get_map_from_folder(folder: str):
             mp = f
     if not mp:
         raise FileNotFoundError('No map found in folder. Exiting')
-    dmap = LocalMap(folder)
+    dmap = LocalMap(str(mp))
     return dmap
 
 
