@@ -163,7 +163,7 @@ class XMLContent:
             actual_title_text = ' '.join(list(self.title_tag.itertext()))
         else:
             actual_title_text = self.title_tag.text
-        if actual_title_text is None or 'MISSING TITLE' in actual_title_text:
+        if not actual_title_text or 'MISSING TITLE' in actual_title_text:
             return True
         return False
 
@@ -173,7 +173,7 @@ class XMLContent:
         if len(self.shortdesc_tag) > 0:  # contains another tag
             return False
         actual_shortdesc = self.shortdesc_tag.text or ' '.join(list(self.shortdesc_tag.itertext()))
-        if actual_shortdesc is None or 'SHORT DESCRIPTION' in actual_shortdesc:
+        if not actual_shortdesc or 'SHORT DESCRIPTION' in actual_shortdesc:
             return True
         return False
 
