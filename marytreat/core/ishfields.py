@@ -1,3 +1,6 @@
+import re
+import uuid
+
 from lxml import etree
 
 from marytreat.core.constants import Constants
@@ -76,3 +79,30 @@ class IshField:
         if self.text:
             root.text = self.text
         return root
+
+
+def validate(user_input):
+    user_input = str(user_input)
+    try:
+        uuid.UUID(user_input.strip())  # mask: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        return user_input.strip()
+    except ValueError:
+        try:
+            uuid.UUID(user_input[5:])  # mask: GUID-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+            return user_input
+        except ValueError:
+            try:
+                assert user_input.startswith('<ishobjects>')
+            except AssertionError:
+                return -1
+            finally:
+                ishobject_mask = r'(\<ishobjects\>\<ishobject\ ishtype=\"(.*?)\"\ ishref=\")(?P<GUID>.*?)\"'
+                match = re.search(ishobject_mask, user_input)
+                try:
+                    object_guid = match.group('GUID')
+                    uuid.UUID(object_guid[5:])  # mask: GUID-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+                    return object_guid
+                except ValueError:
+                    return -1
+                except AttributeError:
+                    return -1

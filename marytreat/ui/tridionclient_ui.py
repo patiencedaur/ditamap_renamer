@@ -10,7 +10,8 @@ from marytreat.core.mary_xml import XMLContent
 from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedMetadataDuplicator
 from marytreat.core.threaded import ThreadedTitleAndDescriptionChecker, ThreadedTagDownload, ThreadedSubmapGenerator
 from marytreat.core.tridionclient import SearchRepository, Project, Tag, Topic, Map
-from marytreat.ui.utils import MaryProgressBar, get_icon, validate, position_window
+from marytreat.ui.utils import MaryProgressBar, get_icon, position_window
+from marytreat.core.ishfields import validate
 
 padding = Constants.PADDING.value
 
@@ -361,11 +362,11 @@ class CopyTagsWindow(Toplevel):
             row=5, column=0, columnspan=3, **padding, sticky=EW)
 
         self.grab_set()
-        messagebox.showwarning('This might not work',
-                               'The Copy Tags functionality depends on the remote TMS server operation.\n'
-                               'In case of errors on the remote server, Copy Tags will not work, '
-                               'and MaryTreat will close.\n\nUse the Copy Tags functionality '
-                               'at your own discretion.')
+        # messagebox.showwarning('This might not work',
+        #                        'The Copy Tags functionality depends on the remote TMS server operation.\n'
+        #                        'In case of errors on the remote server, Copy Tags will not work, '
+        #                        'and MaryTreat will close.\n\nUse the Copy Tags functionality '
+        #                        'at your own discretion.')
         self.q = Queue()
         self.pb = MaryProgressBar()
 

@@ -1,11 +1,12 @@
 import logging
 import os
+import sys
 from functools import wraps
 from marytreat.ui.utils import ErrorDialog
 import marytreat
 
 """
-Logging
+Logging and error handling
 """
 
 
@@ -48,12 +49,20 @@ class MaryLogger(logging.Logger):
         """
         Delegate an exception call to the underlying logger.
         """
-        self.log(logging.ERROR, msg, *args, exc_info=exc_info, **kwargs)
+        self._log(logging.ERROR, msg, *args, exc_info=exc_info, **kwargs)
         ErrorDialog(msg)
 
 
 logging.setLoggerClass(MaryLogger)
 logger = logging.getLogger(__name__)
+
+
+def uncaught_exception_handler(exctype, value, traceback):
+    logging.error("An unhandled exception occurred:", exc_info=(exctype, value, traceback))
+    ErrorDialog(traceback)
+
+
+sys.excepthook = uncaught_exception_handler
 
 """
 Auxiliary debugging functions
