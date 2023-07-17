@@ -20,7 +20,7 @@ def convert_tag_to_step(tag: etree.Element):
     tag.insert(0, cmd)
 
 
-def is_list_item(p):
+def is_list_item(p: etree.Element):
     if not p.text:
         return False
     if search('^\d+\. ', p.text) or search('^\u2751', p.text):
@@ -28,86 +28,20 @@ def is_list_item(p):
     return False
 
 
-def process_table_title(title, is_inside_para):
-    if title is not None and len(title) > 0:
-        if is_inside_para:
-            return title
-        else:
-            return "<p>{}</p>".format(title)
-    else:
-        return ""
-
-
-def process_table(element):
-    table_title = element.find("title")
-    is_inside_para = False
-    if element.tag == "table" and table_title is not None:
-        parent = table_title.getparent()
-        if parent is not None and parent.tag == "p":
-            is_inside_para = True
-        processed_title = process_table_title(ET.tostring(table_title, encoding="unicode"), is_inside_para)
-        table_title.clear()
-        if is_inside_para:
-            table_title.text = processed_title
-        else:
-            table_title.append(ET.fromstring(processed_title))
-
-    tgroup = element.find("tgroup")
-    if tgroup is not None:
-        cols = tgroup.get("cols")
-        columns_number = cols if cols is not None else ""
-        simpletable = ET.Element("simpletable")
-
-        colspec_list = tgroup.findall("colspec")
-        if len(colspec_list) > 0:
-            relcolwidth = ""
-            for colspec in colspec_list:
-                colwidth = colspec.get("colwidth")
-                if colwidth is not None:
-                    if "*" in colwidth:
-                        relcolwidth += colwidth
-                    else:
-                        relcolwidth += "1*"
-                    relcolwidth += " "
-
-            if relcolwidth != "":
-                simpletable.set("relcolwidth", relcolwidth.strip())
-
-        for child in element:
-            if child.tag != "title":
-                simpletable.append(child)
-
-        element.clear()
-        element.append(simpletable)
-
-
-def process_row(element):
-    if element.tag == "row":
-        if element.getparent().tag == "thead":
-            sthead = ET.Element("sthead")
-            sthead.extend(element)
-            element.clear()
-            element.append(sthead)
-        else:
-            strow = ET.Element("strow")
-            strow.extend(element)
-            element.clear()
-            element.append(strow)
-
-
-def process_entry(element):
-    if element.tag == "entry":
-        stentry = ET.Element("stentry")
-        stentry.extend(element)
-        element.clear()
-        element.append(stentry)
-
-
-def remove_unwanted_attributes(element):
-    attributes_to_remove = ["class", "rowsep", "colsep"]
-    for attribute in attributes_to_remove:
-        if attribute in element.attrib:
-            del element.attrib[attribute]
+def convert_to_simpletable(tbl: etree.Element):
+    tbl.tag = 'simpletable'
+    widths = [colspec.attrib.get('colwidth') for colspec in tbl.findall('colspec')]
+    if len(widths) > 0:
+        tbl.set('relcolwidth', ' '.join(widths))
+    for row in tbl.iter('row'):
+        row.tag = 'strow'
+        for entry in row.iter('entry'):
+            entry.tag = 'stentry'
+        tbl.append(row)
+    tbl.remove(tbl.find('tgroup'))
+    # add nbsp after table
+    parent = tbl.getparent()
+    parent.insert(parent.index(tbl) + 1, TextElement('p', '\u00A0'))
 
 
 @debugmethods
@@ -150,7 +84,7 @@ class XMLContent:
         if tbl is None:
             return
         next_p = tbl.getnext()
-        if next_p.tag == 'p' and next_p.text == '\u00A0':
+        if not next_p or (next_p.tag == 'p' and next_p.text == '\u00A0'):
             return
         parent = tbl.getparent()
         tbl_index = parent.index(tbl)
@@ -246,20 +180,18 @@ class XMLContent:
                                   'This method can set fname or fmoduletype')
 
     def process_docdetails(self):
+        """
+        Identify docdetails topic, add shortdesc, convert CALS table to simpletable.
+        """
         # identify docdetails topic
         list_vars = list(self.root.iter('ph'))
         cond_docdetails = len(list_vars) > 0 and list_vars[0].attrib.get('varref') == 'DocTitle'
         if not cond_docdetails:
             return
         if self.shortdesc_missing:
-            # add short description
             self.set_shortdesc('Document details')
-        for element in self.root.iter():
-            process_table(element)
-            process_row(element)
-            process_entry(element)
-            remove_unwanted_attributes(element)
-        self.add_nbsp_after_table()
+        for table_tag in self.root.iter('table'):
+            convert_to_simpletable(table_tag)  # also adds nbsp after table
 
     def add_legal_title_and_shortdesc(self):
         self.set_title('Legal information')
