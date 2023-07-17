@@ -1,17 +1,16 @@
 from queue import Queue, Empty
 from subprocess import Popen
-from tkinter import Button, Label, Frame, PanedWindow, Entry, StringVar, Scrollbar, Text, Toplevel, Tk, END
+from tkinter import Button, Label, Frame, PanedWindow, Entry, StringVar, IntVar, Scrollbar, Text, Toplevel, Tk, END
 from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import ttk
 
-from marytreat.core.constants import Constants
-from marytreat.core import process_word
 import marytreat.core.local as l
+from marytreat.core.constants import Constants
+from marytreat.core.mary_debug import logger
 from marytreat.core.rename_flare_images import RenameImageFile
 from marytreat.core.threaded import ThreadedLocalMapFactory, ThreadedLocalTopicRenamer
 from marytreat.ui.utils import MaryProgressBar, get_icon, position_window
-from marytreat.core.mary_debug import logger
 
 padding = Constants.PADDING.value
 
@@ -47,6 +46,10 @@ class LocalMapProcessing(ttk.LabelFrame):
         self.target_file = Entry(self, textvariable=self.ditamap_var, width=60, bd=4, justify='left')
         self.target_file.grid(row=0, column=1, sticky='nsew', **self.padding, columnspan=2)
 
+        self.process_word_map = IntVar()
+        do_process_word = ttk.Checkbutton(self, text="Preprocess\nif derived\nfrom Word", variable=self.process_word_map, width=10)
+        do_process_word.grid(row=1, column=0, rowspan=2, sticky='nw', **padding)
+
         self.button_rename = Button(self,
                                     text='Rename folder items',
                                     command=self.call_rename_topics,
@@ -76,18 +79,11 @@ class LocalMapProcessing(ttk.LabelFrame):
         Show a file selection dialog. Remember the file that was selected.
         """
         file = filedialog.askopenfilename(filetypes=[('DITA maps', '.ditamap')])
-        if not file:
-            return
-        do_process_map = messagebox.askokcancel('Map processing',
-                                                'The map ' + l.os.path.basename(file) + ' will be pre-processed.\n\n' +
-                                                'If the project was derived from a Word file, ' +
-                                                'basic formatting will be added, ' +
-                                                'but you will still need to clean up the topics afterwards')
-        if do_process_map:
+        if file:
             self.ditamap_var.set(l.os.path.abspath(file))
             l.logger.debug('ditamap_var: ' + self.ditamap_var.get())
             self.pb.start()
-            t = ThreadedLocalMapFactory(l.os.path.abspath(file), self.q)
+            t = ThreadedLocalMapFactory(l.os.path.abspath(file), self.process_word_map, self.q)
             t.start()
             self.after(100, self.check_queue_for_map)
 
@@ -97,9 +93,6 @@ class LocalMapProcessing(ttk.LabelFrame):
             l.logger.debug(self.ditamap.image_folder)
             if len(self.ditamap.images) > 0:
                 self.no_images = False
-            if self.ditamap.source == 'word':
-                self.ditamap.cast_topics_from_word()
-                process_word.after_conversion(self.ditamap.folder)
             self.pb.stopandhide()
             self.turn_on_buttons()
         except Empty:
