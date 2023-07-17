@@ -10,7 +10,8 @@ from marytreat.core.mary_xml import XMLContent
 from marytreat.core.threaded import ThreadedRepositorySearch, ThreadedMigrationCompletion, ThreadedMetadataDuplicator
 from marytreat.core.threaded import ThreadedTitleAndDescriptionChecker, ThreadedTagDownload, ThreadedSubmapGenerator
 from marytreat.core.tridionclient import SearchRepository, Project, Tag, Topic, Map, Folder
-from marytreat.ui.utils import MaryProgressBar, get_icon, validate, position_window
+from marytreat.ui.utils import MaryProgressBar, get_icon, position_window
+from marytreat.core.ishfields import validate
 
 padding = Constants.PADDING.value
 
