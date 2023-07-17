@@ -182,10 +182,10 @@ class Tag:
         xml = self.service.RetrieveTagStructure(token,
                                                 psFieldName=self.name.upper(),
                                                 psFieldLevel=self.level)['psXMLFieldTags']
+        filename = path.join(user_folder, self.name + '-' + datetime.date.today().isoformat() + '.csv')
         # with open('tag.xml', 'w', encoding='utf-8') as f:
         #     f.write(xml)
         root = Unpack.to_tree(xml)
-        filename = path.join(user_folder, self.name + '-' + datetime.date.today().isoformat() + '.csv')
         with open(filename, 'w', encoding='utf-8') as dest:
             for tag in root.iter('tag'):
                 selectable = tag.find('selectable').text
@@ -229,7 +229,7 @@ class Auth:
             logger.info('Login token: ' + tkn)
             return tkn
         except Exception as e:
-            logger.warning('Working offline. Server functions are disabled\n' + str(e))
+            logger.error('Working offline. Server functions are disabled\n' + str(e), exc_info=True)
 
     @staticmethod
     def get_dusername():

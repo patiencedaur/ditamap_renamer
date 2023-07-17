@@ -148,24 +148,6 @@ class LocalMap(LocalProjectFile):
         images_not_used = self.images - images_used
         logger.info('Images not used:\n' + '\n'.join(sorted([i.href for i in images_not_used])))
 
-        # if self.source == 'word':
-        #     self.create_root_concept()
-        #     docdetails = self.topics[0]  # assume it's the first topic in the map
-        #     docdetails.format_docdetails_from_word()
-        #
-        #     for t in self.topics:
-        #         t.content.wrap_images_in_fig()
-        #         t.content.process_notes()
-        #         t.content.create_shortdesc_from_first_p()
-        #         t.write()
-        #
-        #     for t in self.topics:
-        #         t.content.images_to_png()
-        #         t.write()
-        #
-        #     self.add_topic_groups()
-        #     self.write()
-
     def __str__(self) -> str:
         return '<LocalMap: ' + self.name + '>'
 
