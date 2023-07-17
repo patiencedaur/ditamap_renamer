@@ -13,6 +13,37 @@ def TextElement(tag: str, text: str, *args, **kwargs) -> etree.Element:
     return element
 
 
+def convert_tag_to_step(tag: etree.Element):
+    tag.tag = 'step'
+    cmd = TextElement('cmd', tag.text)
+    tag.clear()
+    tag.insert(0, cmd)
+
+
+def is_list_item(p: etree.Element):
+    if not p.text:
+        return False
+    if search('^\d+\. ', p.text) or search('^\u2751', p.text):
+        return True
+    return False
+
+
+def convert_to_simpletable(tbl: etree.Element):
+    tbl.tag = 'simpletable'
+    widths = [colspec.attrib.get('colwidth') for colspec in tbl.findall('colspec')]
+    if len(widths) > 0:
+        tbl.set('relcolwidth', ' '.join(widths))
+    for row in tbl.iter('row'):
+        row.tag = 'strow'
+        for entry in row.iter('entry'):
+            entry.tag = 'stentry'
+        tbl.append(row)
+    tbl.remove(tbl.find('tgroup'))
+    # add nbsp after table
+    parent = tbl.getparent()
+    parent.insert(parent.index(tbl) + 1, TextElement('p', '\u00A0'))
+
+
 @debugmethods
 class XMLContent:
 
@@ -47,17 +78,17 @@ class XMLContent:
 
     def add_nbsp_after_table(self) -> etree.Element:
         """
-       Appends a blank paragraph at the end of the first section.
-        Adds this tag to the file: <#160;> </#160;>
+        Appends a blank paragraph after the table.
         """
-        section = yield self.root.iter('section')
-        if section is None:
+        tbl = self.root.find('table') or self.root.find('simpletable')
+        if tbl is None:
             return
-        empty_paragraphs = [p for p in self.root.iter('p') if p.text == '\u00A0']
-        if len(empty_paragraphs) > 0:
+        next_p = tbl.getnext()
+        if not next_p or (next_p.tag == 'p' and next_p.text == '\u00A0'):
             return
-        p = TextElement('p', '\u00A0')
-        section.append(p)
+        parent = tbl.getparent()
+        tbl_index = parent.index(tbl)
+        parent.insert(tbl_index + 1, TextElement('p', '\u00A0'))
 
     def title_missing(self):
         if self.title_tag is None:
@@ -149,13 +180,18 @@ class XMLContent:
                                   'This method can set fname or fmoduletype')
 
     def process_docdetails(self):
+        """
+        Identify docdetails topic, add shortdesc, convert CALS table to simpletable.
+        """
         # identify docdetails topic
         list_vars = list(self.root.iter('ph'))
         cond_docdetails = len(list_vars) > 0 and list_vars[0].attrib.get('varref') == 'DocTitle'
-        if cond_docdetails and self.shortdesc_missing:
-            # add short description
+        if not cond_docdetails:
+            return
+        if self.shortdesc_missing:
             self.set_shortdesc('Document details')
-            self.add_nbsp_after_table()
+        for table_tag in self.root.iter('table'):
+            convert_to_simpletable(table_tag)  # also adds nbsp after table
 
     def add_legal_title_and_shortdesc(self):
         self.set_title('Legal information')
@@ -211,29 +247,16 @@ class XMLContent:
             for ol in ols:
                 ol.tag = 'steps'
                 for li in ol.iter('li'):
-                    self.convert_tag_to_step(li)
+                    convert_tag_to_step(li)
         else:  # process p's instead of ordered lists
-            for p in filter(lambda x: self.is_list_item(x), self.root.iter('p')):
+            for p in filter(lambda x: is_list_item(x), self.root.iter('p')):
                 # remove the numbers at the start
                 numeration = search('^\d+\. ', p.text).group(0)
                 p.text.replace(numeration, '')
                 checkboxes = search('^\u2751 ', p.text).group(0)
                 p.text.replace(checkboxes, '')
-                self.convert_tag_to_step(p)
+                convert_tag_to_step(p)
             self.wrap_steps()
-
-    def convert_tag_to_step(self, tag: etree.Element):
-        tag.tag = 'step'
-        cmd = TextElement('cmd', tag.text)
-        tag.clear()
-        tag.insert(0, cmd)
-
-    def is_list_item(self, p):
-        if not p.text:
-            return False
-        if search('^\d+\. ', p.text) or search('^\u2751', p.text):
-            return True
-        return False
 
     def wrap_steps(self):
         assert self.outputclass == 'procedure'
@@ -250,7 +273,7 @@ class XMLContent:
         if ol is not None:
             return True
         for p in self.root.iter('p'):
-            if self.is_list_item(p):
+            if is_list_item(p):
                 return True
         return False
 
@@ -278,11 +301,10 @@ class XMLContent:
     def detect_type(self):
         if self.is_mostly_list():
             return 'procedure'
+        elif self.has_table():
+            return 'referenceinformation'
         else:
-            if self.has_table():
-                return 'referenceinformation'
-            else:
-                return 'explanation'
+            return 'explanation'
 
     def wrap_images_in_fig(self):
         if len(self.root.findall('fig')) > 0:
@@ -301,12 +323,6 @@ class XMLContent:
                 href_png = '.'.join((href_and_ext[0], 'png'))
                 logger.debug(href_png)
                 image.set('href', href_png)
-    # def wrap_element(self, element: etree.Element, wrapper_tag: str):
-    #     wrapper = deepcopy(element)
-    #     wrapper.tag = wrapper_tag
-    #     wrapper.clear()
-    #     wrapper.append(element)
-    #     return wrapper
 
     def add_topic_groups(self):
         if self.root.findall('topicgroup'):
