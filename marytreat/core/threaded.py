@@ -1,6 +1,7 @@
 from threading import Thread
 from marytreat.core.mary_debug import logger
 from zeep.exceptions import Fault
+from marytreat.core import process_word
 
 
 """
@@ -9,14 +10,19 @@ Long-running threaded functions
 
 
 class ThreadedLocalMapFactory(Thread):
-    def __init__(self, file_path, q):
+    def __init__(self, file_path, process_word_flag, q):
         super().__init__(daemon=True)
         self.q = q
         self.file_path = file_path
+        self.process_word_flag = process_word_flag
 
     def run(self):
         from marytreat.core.local import LocalMap
         mp = LocalMap(self.file_path)
+        if mp.source == 'word' and self.process_word_flag.get() != 0:
+            logger.info('Processing map derived from a Word file')
+            mp.cast_topics_from_word()
+            process_word.after_conversion(mp.folder)
         self.q.put(mp)
 
 
